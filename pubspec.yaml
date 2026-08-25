@@ -1,0 +1,29 @@
+name: flutter_activity_kit
+description: "Declarative iOS Live Activities (Dynamic Island & Lock Screen) and Android Ongoing Notifications with push token sync, rich state models, and preview widgets."
+version: 0.1.0
+homepage: https://github.com/flutteractivitykit/flutter_activity_kit
+repository: https://github.com/flutteractivitykit/flutter_activity_kit
+issue_tracker: https://github.com/flutteractivitykit/flutter_activity_kit/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.1.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.flutteractivitykit
+        pluginClass: FlutterActivityKitPlugin
+      ios:
+        pluginClass: FlutterActivityKitPlugin
