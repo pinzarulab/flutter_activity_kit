@@ -88,6 +88,85 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   int _homeScore = 2;
   int _awayScore = 1;
   int _matchMinute = 74;
+  String _matchEventText = 'Live 74\' • Dangerous counter-attack';
+  Timer? _sportsAutoTimer;
+  bool _isAutoSimulating = false;
+  int _autoSimStep = 0;
+
+  final List<Map<String, dynamic>> _sportsMatchTimeline = [
+    {
+      'minute': 74,
+      'home': 2,
+      'away': 1,
+      'status': 'Live 74\'',
+      'title': 'Real Madrid vs Barcelona',
+      'message': 'Real Madrid 2 - 1 Barcelona • Dangerous counter-attack',
+      'alert': null,
+    },
+    {
+      'minute': 78,
+      'home': 2,
+      'away': 1,
+      'status': 'Live 78\'',
+      'title': 'Real Madrid vs Barcelona',
+      'message': 'Real Madrid 2 - 1 Barcelona • Free kick for Barca near the box',
+      'alert': null,
+    },
+    {
+      'minute': 82,
+      'home': 3,
+      'away': 1,
+      'status': 'GOAL! 82\'',
+      'title': '⚽ GOAL! Real Madrid',
+      'message': 'Bellingham scores! Real Madrid 3 - 1 Barcelona',
+      'alert': const ActivityAlert(
+        title: '⚽ GOAL! Real Madrid',
+        body: 'Jude Bellingham makes it 3 - 1 with a stunning header!',
+      ),
+    },
+    {
+      'minute': 86,
+      'home': 3,
+      'away': 1,
+      'status': 'Live 86\'',
+      'title': 'Real Madrid vs Barcelona',
+      'message': '🟨 Yellow card shown to Barcelona midfielder',
+      'alert': null,
+    },
+    {
+      'minute': 90,
+      'home': 3,
+      'away': 1,
+      'status': 'Live 90+1\'',
+      'title': 'Real Madrid vs Barcelona',
+      'message': '⏱️ 4 minutes of stoppage time added',
+      'alert': null,
+    },
+    {
+      'minute': 92,
+      'home': 3,
+      'away': 2,
+      'status': 'GOAL! 90+2\'',
+      'title': '⚽ GOAL! Barcelona',
+      'message': 'Lewandowski pulls one back! (3 - 2)',
+      'alert': const ActivityAlert(
+        title: '⚽ GOAL! Barcelona',
+        body: 'Robert Lewandowski scores in stoppage time! (3 - 2)',
+      ),
+    },
+    {
+      'minute': 94,
+      'home': 3,
+      'away': 2,
+      'status': 'FT',
+      'title': '🏁 Match Ended',
+      'message': 'Final Whistle: Real Madrid 3 - 2 Barcelona',
+      'alert': const ActivityAlert(
+        title: '🏁 Full Time',
+        body: 'Final Whistle! Real Madrid wins 3 - 2 against Barcelona',
+      ),
+    },
+  ];
 
   final List<String> _eventLogs = [];
   final List<StreamSubscription<dynamic>> _subscriptions = [];
@@ -102,6 +181,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
 
   @override
   void dispose() {
+    _sportsAutoTimer?.cancel();
     for (final sub in _subscriptions) {
       sub.cancel();
     }
@@ -273,16 +353,20 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   }
 
   // --- Sports Match Activity Actions ---
-  Future<void> _startSportsActivity() async {
+  Future<void> _startSportsActivity({bool autoSimulate = true}) async {
     try {
       if (!_areActivitiesEnabled) {
         final granted = await FlutterActivityKit.requestPermissions();
         setState(() => _areActivitiesEnabled = granted);
       }
 
-      _homeScore = 2;
-      _awayScore = 1;
-      _matchMinute = 74;
+      _sportsAutoTimer?.cancel();
+      _autoSimStep = 0;
+      final initialStep = _sportsMatchTimeline[_autoSimStep];
+      _homeScore = initialStep['home'] as int;
+      _awayScore = initialStep['away'] as int;
+      _matchMinute = initialStep['minute'] as int;
+      _matchEventText = initialStep['message'] as String;
 
       final session = await FlutterActivityKit.startActivity(
         attributes: const MapActivityAttributes(
@@ -296,10 +380,10 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
         ),
         content: ActivityContent(
           state: MapActivityContentState({
-            'title': 'Real Madrid vs Barcelona',
-            'message': 'Real Madrid 2 - 1 Barcelona',
-            'status': 'Live 74\'',
-            'progress': 74 / 90.0,
+            'title': initialStep['title'] as String,
+            'message': initialStep['message'] as String,
+            'status': initialStep['status'] as String,
+            'progress': _matchMinute / 90.0,
             'homeScore': _homeScore,
             'awayScore': _awayScore,
             'matchMinute': _matchMinute,
@@ -319,11 +403,86 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
 
       setState(() {
         _sportsSession = session;
+        _isAutoSimulating = autoSimulate;
       });
 
       _logEvent('Started Sports Activity: ${session.id}');
+
+      if (autoSimulate) {
+        _startSportsAutoSimulation();
+      }
     } catch (e) {
       _logEvent('Error starting sports activity: $e');
+    }
+  }
+
+  void _startSportsAutoSimulation() {
+    _sportsAutoTimer?.cancel();
+    _isAutoSimulating = true;
+    _sportsAutoTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      await _advanceSportsTimeline();
+    });
+    setState(() {});
+  }
+
+  void _toggleSportsAutoSimulation() {
+    if (_isAutoSimulating) {
+      _sportsAutoTimer?.cancel();
+      setState(() => _isAutoSimulating = false);
+      _logEvent('Paused Sports auto-simulation');
+    } else {
+      _startSportsAutoSimulation();
+      _logEvent('Resumed Sports auto-simulation');
+    }
+  }
+
+  Future<void> _advanceSportsTimeline() async {
+    if (_sportsSession == null) {
+      _sportsAutoTimer?.cancel();
+      return;
+    }
+
+    if (_autoSimStep < _sportsMatchTimeline.length - 1) {
+      _autoSimStep++;
+      final step = _sportsMatchTimeline[_autoSimStep];
+
+      setState(() {
+        _homeScore = step['home'] as int;
+        _awayScore = step['away'] as int;
+        _matchMinute = step['minute'] as int;
+        _matchEventText = step['message'] as String;
+      });
+
+      final alert = step['alert'] as ActivityAlert?;
+
+      try {
+        await _sportsSession!.update(
+          ActivityContent(
+            state: MapActivityContentState({
+              'title': step['title'] as String,
+              'message': step['message'] as String,
+              'status': step['status'] as String,
+              'progress': (_matchMinute / 90.0).clamp(0.0, 1.0),
+              'homeScore': _homeScore,
+              'awayScore': _awayScore,
+              'matchMinute': _matchMinute,
+            }),
+            alert: alert,
+          ),
+        );
+        _logEvent('Auto-Update: ${step['status']} • Score: $_homeScore - $_awayScore');
+      } catch (e) {
+        _logEvent('Error during auto-update: $e');
+      }
+
+      if (_autoSimStep >= _sportsMatchTimeline.length - 1) {
+        _sportsAutoTimer?.cancel();
+        setState(() => _isAutoSimulating = false);
+        _logEvent('🏁 Match simulation reached Full Time');
+      }
+    } else {
+      _sportsAutoTimer?.cancel();
+      setState(() => _isAutoSimulating = false);
     }
   }
 
@@ -335,7 +494,10 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       } else {
         _awayScore++;
       }
-      _matchMinute = (_matchMinute + 4).clamp(1, 90);
+      _matchMinute = (_matchMinute + 3).clamp(1, 90);
+      _matchEventText = homeScored
+          ? '⚽ GOAL! Real Madrid scores! ($_homeScore - $_awayScore)'
+          : '⚽ GOAL! Barcelona scores! ($_homeScore - $_awayScore)';
     });
 
     try {
@@ -345,7 +507,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
             'title': 'Real Madrid vs Barcelona',
             'message': 'GOAL! Score: $_homeScore - $_awayScore',
             'status': 'Live $_matchMinute\'',
-            'progress': _matchMinute / 90.0,
+            'progress': (_matchMinute / 90.0).clamp(0.0, 1.0),
             'homeScore': _homeScore,
             'awayScore': _awayScore,
             'matchMinute': _matchMinute,
@@ -366,6 +528,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
 
   Future<void> _endSportsActivity() async {
     if (_sportsSession == null) return;
+    _sportsAutoTimer?.cancel();
     try {
       await _sportsSession!.end(
         finalContent: ActivityContent(
@@ -381,6 +544,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       _logEvent('Ended Sports Activity: ${_sportsSession!.id}');
       setState(() {
         _sportsSession = null;
+        _isAutoSimulating = false;
       });
     } catch (e) {
       _logEvent('Error ending sports activity: $e');
@@ -792,8 +956,8 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
               children: [
                 Expanded(
                   child: Text(
-                    '⚽ Goal scored in minute 68!',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+                    _matchEventText,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
                   ),
                 ),
               ],
@@ -810,18 +974,83 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Match Controls',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Match Controls',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      if (isRunning)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _isAutoSimulating
+                                ? Colors.green.withValues(alpha: 0.15)
+                                : Colors.amber.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _isAutoSimulating
+                                  ? Colors.green.withValues(alpha: 0.5)
+                                  : Colors.amber.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isAutoSimulating ? Icons.timer_outlined : Icons.pause_circle_outline,
+                                size: 12,
+                                color: _isAutoSimulating ? Colors.green : Colors.amber,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isAutoSimulating ? 'Auto (4s ticks)' : 'Paused',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: _isAutoSimulating ? Colors.green : Colors.amber,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  if (!isRunning)
+                  if (!isRunning) ...[
                     FilledButton.icon(
-                      onPressed: _startSportsActivity,
-                      icon: const Icon(Icons.sports_soccer_rounded),
-                      label: const Text('Start Match Live Activity'),
-                    )
-                  else ...[
+                      onPressed: () => _startSportsActivity(autoSimulate: true),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Start Auto-Simulated Match (4s Ticks)'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _startSportsActivity(autoSimulate: false),
+                      icon: const Icon(Icons.touch_app_rounded),
+                      label: const Text('Start Manual Match'),
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: _toggleSportsAutoSimulation,
+                            icon: Icon(_isAutoSimulating ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                            label: Text(_isAutoSimulating ? 'Pause Auto' : 'Resume Auto'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _advanceSportsTimeline,
+                            icon: const Icon(Icons.skip_next_rounded),
+                            label: const Text('Next Minute'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
