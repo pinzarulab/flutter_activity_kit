@@ -37,6 +37,10 @@ class FlutterActivityKit {
   static Future<bool> areActivitiesEnabled() =>
       _platform.areActivitiesEnabled();
 
+  /// Requests notification and Live Activity permissions from the user.
+  static Future<bool> requestPermissions() =>
+      _platform.requestPermissions();
+
   /// Retrieves the push-to-start token on iOS 17.2+ for triggering Live Activities remotely via APNs.
   static Future<String?> getPushToStartToken({String? activityType}) =>
       _platform.getPushToStartToken(activityType: activityType);

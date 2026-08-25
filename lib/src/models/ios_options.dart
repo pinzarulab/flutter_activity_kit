@@ -9,14 +9,14 @@ class IOSOptions {
   /// Priority score (0.0 to 100.0) used by iOS to order multiple active Live Activities.
   final double? relevanceScore;
 
-  /// Push notification type: 'token' (for remote APNs push updates) or 'none'.
-  final String pushType;
+  /// Push notification type: 'token' (for remote APNs push updates) or 'none' / null for local.
+  final String? pushType;
 
   const IOSOptions({
     this.activityType,
     this.staleDate,
     this.relevanceScore,
-    this.pushType = 'token',
+    this.pushType,
   });
 
   /// Converts this configuration to a serializable map.
@@ -25,7 +25,7 @@ class IOSOptions {
       if (activityType != null) 'activityType': activityType,
       if (staleDate != null) 'staleDate': staleDate!.millisecondsSinceEpoch,
       if (relevanceScore != null) 'relevanceScore': relevanceScore,
-      'pushType': pushType,
+      if (pushType != null) 'pushType': pushType,
     };
   }
 
@@ -37,7 +37,7 @@ class IOSOptions {
           ? DateTime.fromMillisecondsSinceEpoch(map['staleDate'] as int)
           : null,
       relevanceScore: (map['relevanceScore'] as num?)?.toDouble(),
-      pushType: map['pushType'] as String? ?? 'token',
+      pushType: map['pushType'] as String?,
     );
   }
 }

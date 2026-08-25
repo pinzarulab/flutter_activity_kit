@@ -19,6 +19,8 @@ void main() {
           return true;
         case 'areActivitiesEnabled':
           return true;
+        case 'requestPermissions':
+          return true;
         case 'getPushToStartToken':
           return 'push_to_start_hex_token';
         case 'startActivity':
@@ -76,6 +78,12 @@ void main() {
     final enabled = await FlutterActivityKit.areActivitiesEnabled();
     expect(enabled, isTrue);
     expect(log.first.method, 'areActivitiesEnabled');
+  });
+
+  test('requestPermissions returns true', () async {
+    final granted = await FlutterActivityKit.requestPermissions();
+    expect(granted, isTrue);
+    expect(log.first.method, 'requestPermissions');
   });
 
   test('getPushToStartToken returns token', () async {

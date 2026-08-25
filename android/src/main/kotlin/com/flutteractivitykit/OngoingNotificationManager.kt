@@ -15,8 +15,8 @@ data class TrackedActivity(
     val id: String,
     val activityType: String,
     var state: String,
-    val attributes: Map<String, Any>,
-    var contentState: Map<String, Any>,
+    val attributes: Map<String, Any?>,
+    var contentState: Map<String, Any?>,
     val notificationId: Int
 )
 
@@ -64,17 +64,17 @@ class OngoingNotificationManager(private val context: Context) {
         return if (defaultId != 0) defaultId else android.R.drawable.ic_dialog_info
     }
 
-    fun startActivity(args: Map<String, Any>): Map<String, Any> {
+    fun startActivity(args: Map<String, Any?>): Map<String, Any?> {
         val activityId = UUID.randomUUID().toString()
         val activityType = args["activityType"] as? String ?: "GenericActivity"
         @Suppress("UNCHECKED_CAST")
-        val rawAttributes = (args["attributes"] as? Map<String, Any>) ?: emptyMap()
+        val rawAttributes = (args["attributes"] as? Map<String, Any?>) ?: emptyMap()
         @Suppress("UNCHECKED_CAST")
-        val rawContent = (args["content"] as? Map<String, Any>) ?: emptyMap()
+        val rawContent = (args["content"] as? Map<String, Any?>) ?: emptyMap()
         @Suppress("UNCHECKED_CAST")
-        val rawState = (rawContent["state"] as? Map<String, Any>) ?: emptyMap()
+        val rawState = (rawContent["state"] as? Map<String, Any?>) ?: emptyMap()
         @Suppress("UNCHECKED_CAST")
-        val androidOptions = (args["androidOptions"] as? Map<String, Any>) ?: emptyMap()
+        val androidOptions = (args["androidOptions"] as? Map<String, Any?>) ?: emptyMap()
 
         val notificationId = synchronized(this) { nextNotificationId++ }
 
@@ -101,18 +101,18 @@ class OngoingNotificationManager(private val context: Context) {
             "state" to "active",
             "attributes" to rawAttributes,
             "contentState" to rawState,
-            "pushToken" to null as Any?
+            "pushToken" to null
         )
     }
 
     fun updateActivity(
         activityId: String,
-        contentMap: Map<String, Any>,
-        alertMap: Map<String, Any>?
+        contentMap: Map<String, Any?>,
+        alertMap: Map<String, Any?>?
     ) {
         val tracked = trackedActivities[activityId] ?: return
         @Suppress("UNCHECKED_CAST")
-        val rawState = (contentMap["state"] as? Map<String, Any>) ?: emptyMap()
+        val rawState = (contentMap["state"] as? Map<String, Any?>) ?: emptyMap()
         tracked.contentState = rawState
 
         // Update notification
@@ -126,8 +126,8 @@ class OngoingNotificationManager(private val context: Context) {
 
     fun endActivity(
         activityId: String,
-        finalContentMap: Map<String, Any>?,
-        dismissalPolicyMap: Map<String, Any>?
+        finalContentMap: Map<String, Any?>?,
+        dismissalPolicyMap: Map<String, Any?>?
     ) {
         val tracked = trackedActivities[activityId] ?: return
         tracked.state = "ended"
@@ -140,7 +140,7 @@ class OngoingNotificationManager(private val context: Context) {
             // If final content provided, post it once as non-ongoing
             if (finalContentMap != null) {
                 @Suppress("UNCHECKED_CAST")
-                val rawState = (finalContentMap["state"] as? Map<String, Any>) ?: emptyMap()
+                val rawState = (finalContentMap["state"] as? Map<String, Any?>) ?: emptyMap()
                 tracked.contentState = rawState
                 buildAndPostNotification(
                     activityId = activityId,
@@ -155,7 +155,7 @@ class OngoingNotificationManager(private val context: Context) {
         }
     }
 
-    fun getAllActivities(): List<Map<String, Any>> {
+    fun getAllActivities(): List<Map<String, Any?>> {
         return trackedActivities.values.map { activity ->
             mapOf(
                 "id" to activity.id,
@@ -163,12 +163,12 @@ class OngoingNotificationManager(private val context: Context) {
                 "state" to activity.state,
                 "attributes" to activity.attributes,
                 "contentState" to activity.contentState,
-                "pushToken" to null as Any?
+                "pushToken" to null
             )
         }
     }
 
-    fun getActivity(activityId: String): Map<String, Any>? {
+    fun getActivity(activityId: String): Map<String, Any?>? {
         val activity = trackedActivities[activityId] ?: return null
         return mapOf(
             "id" to activity.id,
@@ -176,15 +176,15 @@ class OngoingNotificationManager(private val context: Context) {
             "state" to activity.state,
             "attributes" to activity.attributes,
             "contentState" to activity.contentState,
-            "pushToken" to null as Any?
+            "pushToken" to null
         )
     }
 
     private fun buildAndPostNotification(
         activityId: String,
         notificationId: Int,
-        contentState: Map<String, Any>,
-        androidOptions: Map<String, Any>
+        contentState: Map<String, Any?>,
+        androidOptions: Map<String, Any?>
     ) {
         val channelId = (androidOptions["channelId"] as? String) ?: "flutter_activity_kit_channel"
         val channelName = (androidOptions["channelName"] as? String) ?: "Live Activities"
@@ -241,7 +241,7 @@ class OngoingNotificationManager(private val context: Context) {
 
         // Action buttons
         @Suppress("UNCHECKED_CAST")
-        val actionsList = (androidOptions["actions"] as? List<Map<String, Any>>) ?: emptyList()
+        val actionsList = (androidOptions["actions"] as? List<Map<String, Any?>>) ?: emptyList()
         for ((index, actionMap) in actionsList.withIndex()) {
             val actionId = (actionMap["id"] as? String) ?: "action_$index"
             val actionTitle = (actionMap["title"] as? String) ?: "Action"

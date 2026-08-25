@@ -1,151 +1,88 @@
 //
 //  LiveActivityWidget.swift
-//  flutter_activity_kit_example
+//  LiveActivityWidget
+//
+//  Created by Daniel Pinzaru on 25.08.2026.
 //
 
-import ActivityKit
 import WidgetKit
 import SwiftUI
 
-@available(iOS 16.1, *)
-public struct FlutterActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
-        public var data: [String: String]
-        public var progress: Double?
-        public var title: String?
-        public var message: String?
-        public var status: String?
-
-        public init(
-            data: [String: String] = [:],
-            progress: Double? = nil,
-            title: String? = nil,
-            message: String? = nil,
-            status: String? = nil
-        ) {
-            self.data = data
-            self.progress = progress
-            self.title = title
-            self.message = message
-            self.status = status
-        }
+struct Provider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> SimpleEntry {
+        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent())
     }
 
-    public var activityType: String
-    public var staticData: [String: String]
+    func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
+        SimpleEntry(date: Date(), configuration: configuration)
+    }
+    
+    func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
+        var entries: [SimpleEntry] = []
 
-    public init(activityType: String, staticData: [String: String] = [:]) {
-        self.activityType = activityType
-        self.staticData = staticData
+        // Generate a timeline consisting of five entries an hour apart, starting from the current date.
+        let currentDate = Date()
+        for hourOffset in 0 ..< 5 {
+            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
+            let entry = SimpleEntry(date: entryDate, configuration: configuration)
+            entries.append(entry)
+        }
+
+        return Timeline(entries: entries, policy: .atEnd)
+    }
+
+//    func relevances() async -> WidgetRelevances<ConfigurationAppIntent> {
+//        // Generate a list containing the contexts this widget is relevant in.
+//    }
+}
+
+struct SimpleEntry: TimelineEntry {
+    let date: Date
+    let configuration: ConfigurationAppIntent
+}
+
+struct LiveActivityWidgetEntryView : View {
+    var entry: Provider.Entry
+
+    var body: some View {
+        VStack {
+            Text("Time:")
+            Text(entry.date, style: .time)
+
+            Text("Favorite Emoji:")
+            Text(entry.configuration.favoriteEmoji)
+        }
     }
 }
 
-@available(iOS 16.1, *)
-@main
-public struct LiveActivityWidgetBundle: WidgetBundle {
-    public var body: some Widget {
-        LiveActivityWidget()
+struct LiveActivityWidget: Widget {
+    let kind: String = "LiveActivityWidget"
+
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: Provider()) { entry in
+            LiveActivityWidgetEntryView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
     }
 }
 
-@available(iOS 16.1, *)
-public struct LiveActivityWidget: Widget {
-    public var body: some WidgetConfiguration {
-        ActivityConfiguration(for: FlutterActivityAttributes.self) { context in
-            // Lock Screen Banner
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label(context.state.title ?? "Live Activity", systemImage: "bolt.fill")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Spacer()
-                    if let status = context.state.status {
-                        Text(status)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.blue.opacity(0.3)))
-                            .foregroundColor(.cyan)
-                    }
-                }
-
-                if let message = context.state.message {
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.85))
-                }
-
-                if let progress = context.state.progress {
-                    ProgressView(value: progress, total: 1.0)
-                        .tint(.cyan)
-                }
-            }
-            .padding(16)
-            .background(Color.black.opacity(0.85))
-            .activityBackgroundTint(Color.black.opacity(0.85))
-            .activitySystemActionForegroundColor(Color.white)
-        } dynamicIsland: { context in
-            DynamicIsland {
-                // Expanded Leading
-                DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.circle.fill")
-                            .foregroundColor(.cyan)
-                        Text(context.state.status ?? "")
-                            .font(.caption2)
-                            .foregroundColor(.white)
-                    }
-                    .padding(.leading, 8)
-                }
-
-                // Expanded Trailing
-                DynamicIslandExpandedRegion(.trailing) {
-                    if let progress = context.state.progress {
-                        Text("\(Int(progress * 100))%")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
-                            .padding(.trailing, 8)
-                    }
-                }
-
-                // Expanded Bottom
-                DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(context.state.title ?? "")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        Text(context.state.message ?? "")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-
-                        if let progress = context.state.progress {
-                            ProgressView(value: progress, total: 1.0)
-                                .tint(.cyan)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 6)
-                }
-            } compactLeading: {
-                HStack(spacing: 4) {
-                    Image(systemName: "bolt.fill")
-                        .foregroundColor(.cyan)
-                    Text(context.state.status ?? "")
-                        .font(.caption2)
-                }
-            } compactTrailing: {
-                if let progress = context.state.progress {
-                    Text("\(Int(progress * 100))%")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.green)
-                }
-            } minimal: {
-                Image(systemName: "bolt.fill")
-                    .foregroundColor(.cyan)
-            }
-        }
+extension ConfigurationAppIntent {
+    fileprivate static var smiley: ConfigurationAppIntent {
+        let intent = ConfigurationAppIntent()
+        intent.favoriteEmoji = "😀"
+        return intent
     }
+    
+    fileprivate static var starEyes: ConfigurationAppIntent {
+        let intent = ConfigurationAppIntent()
+        intent.favoriteEmoji = "🤩"
+        return intent
+    }
+}
+
+#Preview(as: .systemSmall) {
+    LiveActivityWidget()
+} timeline: {
+    SimpleEntry(date: .now, configuration: .smiley)
+    SimpleEntry(date: .now, configuration: .starEyes)
 }

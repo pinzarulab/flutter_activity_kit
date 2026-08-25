@@ -169,6 +169,11 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   // --- Delivery Activity Actions ---
   Future<void> _startDeliveryActivity() async {
     try {
+      if (!_areActivitiesEnabled) {
+        final granted = await FlutterActivityKit.requestPermissions();
+        setState(() => _areActivitiesEnabled = granted);
+      }
+
       _deliveryStep = 0;
       final stepData = _deliverySteps[_deliveryStep];
 
@@ -191,7 +196,6 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
         ),
         iosOptions: const IOSOptions(
           activityType: 'DeliveryAttributes',
-          pushType: 'token',
         ),
         androidOptions: const AndroidOptions(
           channelId: 'delivery_channel',
@@ -271,6 +275,11 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   // --- Sports Match Activity Actions ---
   Future<void> _startSportsActivity() async {
     try {
+      if (!_areActivitiesEnabled) {
+        final granted = await FlutterActivityKit.requestPermissions();
+        setState(() => _areActivitiesEnabled = granted);
+      }
+
       _homeScore = 2;
       _awayScore = 1;
       _matchMinute = 74;
@@ -437,14 +446,42 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
           const Spacer(),
-          Text(
-            'Activities: ${_areActivitiesEnabled ? "Enabled" : "Disabled"}',
-            style: TextStyle(
-              fontSize: 12,
-              color: _areActivitiesEnabled ? Colors.green : Colors.redAccent,
-              fontWeight: FontWeight.w600,
+          if (!_areActivitiesEnabled)
+            InkWell(
+              onTap: () async {
+                final granted = await FlutterActivityKit.requestPermissions();
+                setState(() => _areActivitiesEnabled = granted);
+                _logEvent('Permission request result: $granted');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_open_rounded, size: 12, color: Colors.redAccent),
+                    SizedBox(width: 4),
+                    Text(
+                      'Enable Permission',
+                      style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            const Text(
+              'Activities: Enabled',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.green,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
         ],
       ),
     );

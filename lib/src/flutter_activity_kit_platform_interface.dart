@@ -35,6 +35,11 @@ abstract class FlutterActivityKitPlatform extends PlatformInterface {
     throw UnimplementedError('areActivitiesEnabled() has not been implemented.');
   }
 
+  /// Requests notification and Live Activity permissions from the user.
+  Future<bool> requestPermissions() {
+    throw UnimplementedError('requestPermissions() has not been implemented.');
+  }
+
   /// Request push-to-start token on iOS 17.2+ for initiating remote Live Activities.
   Future<String?> getPushToStartToken({String? activityType}) {
     throw UnimplementedError('getPushToStartToken() has not been implemented.');

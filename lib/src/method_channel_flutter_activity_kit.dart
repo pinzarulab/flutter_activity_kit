@@ -46,6 +46,13 @@ class MethodChannelFlutterActivityKit extends FlutterActivityKitPlatform {
   }
 
   @override
+  Future<bool> requestPermissions() async {
+    final result =
+        await methodChannel.invokeMethod<bool>('requestPermissions');
+    return result ?? false;
+  }
+
+  @override
   Future<String?> getPushToStartToken({String? activityType}) async {
     return await methodChannel.invokeMethod<String>(
       'getPushToStartToken',
