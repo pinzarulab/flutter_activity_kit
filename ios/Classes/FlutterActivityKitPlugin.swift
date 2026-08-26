@@ -6,6 +6,8 @@ import ActivityKit
 #endif
 
 public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
+    public static var instance: FlutterActivityKitPlugin?
+
     private var pushTokenEventSink: FlutterEventSink?
     private var stateUpdateEventSink: FlutterEventSink?
     private var actionEventSink: FlutterEventSink?
@@ -14,6 +16,27 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
     private var activeTasks: [String: [Task<Void, Never>]] = [:]
     #endif
 
+    override init() {
+        super.init()
+        FlutterActivityKitPlugin.instance = self
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleActionNotification(_:)),
+            name: NSNotification.Name("FlutterActivityKitActionEvent"),
+            object: nil
+        )
+    }
+
+    @objc private func handleActionNotification(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let activityId = userInfo["activityId"] as? String,
+              let actionId = userInfo["actionId"] as? String else { return }
+        let payload = userInfo["payload"] as? [String: Any]
+        DispatchQueue.main.async { [weak self] in
+            self?.sendActionEvent(activityId: activityId, actionId: actionId, payload: payload)
+        }
+    }
+
     public static func register(with registrar: FlutterPluginRegistrar) {
         let methodChannel = FlutterMethodChannel(name: "flutter_activity_kit/methods", binaryMessenger: registrar.messenger())
         let pushTokensChannel = FlutterEventChannel(name: "flutter_activity_kit/push_tokens", binaryMessenger: registrar.messenger())
@@ -21,6 +44,7 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         let actionEventsChannel = FlutterEventChannel(name: "flutter_activity_kit/action_events", binaryMessenger: registrar.messenger())
 
         let instance = FlutterActivityKitPlugin()
+        FlutterActivityKitPlugin.instance = instance
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
         registrar.addApplicationDelegate(instance)
 
@@ -532,11 +556,19 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
     }
 
     public func sendActionEvent(activityId: String, actionId: String, payload: [String: Any]? = nil) {
-        actionEventSink?([
-            "activityId": activityId,
-            "actionId": actionId,
-            "payload": payload as Any
-        ])
+        DispatchQueue.main.async { [weak self] in
+            self?.actionEventSink?([
+                "activityId": activityId,
+                "actionId": actionId,
+                "payload": payload as Any
+            ])
+        }
+    }
+
+    public static func sendActionEvent(activityId: String, actionId: String, payload: [String: Any]? = nil) {
+        DispatchQueue.main.async {
+            instance?.sendActionEvent(activityId: activityId, actionId: actionId, payload: payload)
+        }
     }
 }
 

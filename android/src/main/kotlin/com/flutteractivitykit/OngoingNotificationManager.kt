@@ -17,6 +17,7 @@ data class TrackedActivity(
     var state: String,
     val attributes: Map<String, Any?>,
     var contentState: Map<String, Any?>,
+    var androidOptions: Map<String, Any?>,
     val notificationId: Int
 )
 
@@ -84,6 +85,7 @@ class OngoingNotificationManager(private val context: Context) {
             state = "active",
             attributes = rawAttributes,
             contentState = rawState,
+            androidOptions = androidOptions,
             notificationId = notificationId
         )
         trackedActivities[activityId] = tracked
@@ -115,12 +117,12 @@ class OngoingNotificationManager(private val context: Context) {
         val rawState = (contentMap["state"] as? Map<String, Any?>) ?: emptyMap()
         tracked.contentState = rawState
 
-        // Update notification
+        // Update notification keeping androidOptions
         buildAndPostNotification(
             activityId = activityId,
             notificationId = tracked.notificationId,
             contentState = rawState,
-            androidOptions = emptyMap() // Keep previous configuration
+            androidOptions = tracked.androidOptions
         )
     }
 
@@ -207,6 +209,27 @@ class OngoingNotificationManager(private val context: Context) {
             .setAutoCancel(!ongoing)
             .setOnlyAlertOnce(true)
 
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+
+        // Tap content intent to bring app to foreground
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("activityId", activityId)
+        }
+        if (launchIntent != null) {
+            val contentPendingIntent = PendingIntent.getActivity(
+                context,
+                notificationId,
+                launchIntent,
+                flags
+            )
+            builder.setContentIntent(contentPendingIntent)
+        }
+
         if (subText != null) {
             builder.setSubText(subText)
         }
@@ -247,24 +270,32 @@ class OngoingNotificationManager(private val context: Context) {
             val actionTitle = (actionMap["title"] as? String) ?: "Action"
             val actionIconRes = getIconResourceId(actionMap["icon"] as? String)
 
-            val intent = Intent(context, ActivityActionReceiver::class.java).apply {
-                action = "com.flutteractivitykit.ACTION_CLICK"
+            val actionLaunchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra("activityId", activityId)
                 putExtra("actionId", actionId)
             }
 
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            val pendingIntent = if (actionLaunchIntent != null) {
+                PendingIntent.getActivity(
+                    context,
+                    (notificationId * 10 + index),
+                    actionLaunchIntent,
+                    flags
+                )
             } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
+                val intent = Intent(context, ActivityActionReceiver::class.java).apply {
+                    action = "com.flutteractivitykit.ACTION_CLICK"
+                    putExtra("activityId", activityId)
+                    putExtra("actionId", actionId)
+                }
+                PendingIntent.getBroadcast(
+                    context,
+                    (notificationId * 10 + index),
+                    intent,
+                    flags
+                )
             }
-
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                (notificationId * 10 + index),
-                intent,
-                flags
-            )
 
             builder.addAction(actionIconRes, actionTitle, pendingIntent)
         }

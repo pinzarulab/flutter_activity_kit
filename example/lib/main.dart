@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_activity_kit/flutter_activity_kit.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const FlutterActivityKitExampleApp());
@@ -230,11 +231,141 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   }
 
   void _handleActionTap(String actionId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Received Action Click: $actionId'),
-        backgroundColor: Colors.blueAccent,
-        duration: const Duration(seconds: 2),
+    switch (actionId) {
+      case 'mute_match':
+        _logEvent('Interactive Action: Match Alerts Muted/Unmuted');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.volume_off_rounded, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Match notifications muted from Dynamic Island'),
+              ],
+            ),
+            backgroundColor: Colors.indigo,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        break;
+
+      case 'match_stats':
+        _logEvent('Interactive Action: Opening Match Stats Screen');
+        _tabController.animateTo(1);
+        _showMatchStats();
+        break;
+
+      case 'call_driver':
+        _logEvent('Interactive Action: Opening Phone App with Driver Number (+1 555-0199)');
+        _openPhoneDialer('+15550199');
+        break;
+
+      case 'add_tip':
+        _logEvent('Interactive Action: Added \$2 Tip for Driver');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.volunteer_activism_rounded, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Added \$2.00 tip for your driver. Thank you!'),
+              ],
+            ),
+            backgroundColor: Colors.amber,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        break;
+
+      case 'cancel_order':
+        _logEvent('Interactive Action: Order Cancellation requested');
+        _endDeliveryActivity();
+        break;
+
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Received Dynamic Island Action: $actionId'),
+            backgroundColor: Colors.blueAccent,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    }
+  }
+
+  Future<void> _openPhoneDialer(String phoneNumber) async {
+    final uri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Calling $phoneNumber...'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      _logEvent('Error launching phone app: $e');
+    }
+  }
+
+  void _showMatchStats() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Live Match Statistics',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildStatRow('Possession', '58%', '42%'),
+            _buildStatRow('Shots on Target', '7', '4'),
+            _buildStatRow('Fouls', '8', '11'),
+            _buildStatRow('Corner Kicks', '5', '3'),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String title, String homeVal, String awayVal) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Text(homeVal, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ),
+          Text(awayVal, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }

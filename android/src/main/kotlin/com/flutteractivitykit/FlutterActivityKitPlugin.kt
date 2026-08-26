@@ -19,9 +19,10 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
+import android.content.Intent
 
 /** FlutterActivityKitPlugin */
-class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
+class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener, PluginRegistry.NewIntentListener {
     private lateinit var methodChannel: MethodChannel
     private lateinit var pushTokensChannel: EventChannel
     private lateinit var stateUpdatesChannel: EventChannel
@@ -259,14 +260,31 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         return false
     }
 
+    override fun onNewIntent(intent: Intent): Boolean {
+        handleIntent(intent)
+        return false
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+        val activityId = intent.getStringExtra("activityId")
+        val actionId = intent.getStringExtra("actionId")
+        if (activityId != null && actionId != null) {
+            sendActionEvent(activityId, actionId)
+        }
+    }
+
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         activityBinding = binding
         binding.addRequestPermissionsResultListener(this)
+        binding.addOnNewIntentListener(this)
+        handleIntent(binding.activity.intent)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
         activityBinding?.removeRequestPermissionsResultListener(this)
+        activityBinding?.removeOnNewIntentListener(this)
         activity = null
         activityBinding = null
     }
@@ -275,10 +293,13 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         activity = binding.activity
         activityBinding = binding
         binding.addRequestPermissionsResultListener(this)
+        binding.addOnNewIntentListener(this)
+        handleIntent(binding.activity.intent)
     }
 
     override fun onDetachedFromActivity() {
         activityBinding?.removeRequestPermissionsResultListener(this)
+        activityBinding?.removeOnNewIntentListener(this)
         activity = null
         activityBinding = null
     }
