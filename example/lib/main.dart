@@ -61,6 +61,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       'progress': 0.15,
       'status': 'Preparing 🍕',
       'eta': '25 mins',
+      'timer': ActivityTimer.countdown(const Duration(minutes: 25)),
     },
     {
       'title': 'Baking in Oven',
@@ -68,6 +69,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       'progress': 0.45,
       'status': 'Baking 🔥',
       'eta': '18 mins',
+      'timer': ActivityTimer.countdown(const Duration(minutes: 18)),
     },
     {
       'title': 'Out for Delivery',
@@ -75,6 +77,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       'progress': 0.80,
       'status': 'On the Way 🛵',
       'eta': '5 mins',
+      'timer': ActivityTimer.countdown(const Duration(minutes: 5)),
     },
     {
       'title': 'Arrived',
@@ -399,6 +402,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
         ),
         content: ActivityContent(
           state: MapActivityContentState(stepData),
+          timer: stepData['timer'] as ActivityTimer?,
           relevanceScore: 90.0,
           alert: const ActivityAlert(
             title: 'Order Confirmed',
@@ -455,6 +459,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       await _deliverySession!.update(
         ActivityContent(
           state: MapActivityContentState(stepData),
+          timer: stepData['timer'] as ActivityTimer?,
           alert: ActivityAlert(
             title: stepData['title'] as String,
             body: stepData['message'] as String,

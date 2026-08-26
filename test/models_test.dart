@@ -201,4 +201,44 @@ void main() {
       expect(actionEvent.payload?['phone'], '555-1234');
     });
   });
+
+  group('ActivityTimer', () {
+    test('countdown timer maps and serializes correctly', () {
+      final start = DateTime(2026, 8, 26, 12, 0, 0);
+      final target = DateTime(2026, 8, 26, 12, 25, 0);
+      final timer = ActivityTimer(
+        startDate: start,
+        targetDate: target,
+        countsDown: true,
+      );
+
+      final map = timer.toMap();
+      expect(map['startDate'], start.millisecondsSinceEpoch);
+      expect(map['targetDate'], target.millisecondsSinceEpoch);
+      expect(map['countsDown'], isTrue);
+      expect(map['isPaused'], isFalse);
+
+      final parsed = ActivityTimer.fromMap(map);
+      expect(parsed.startDate, start);
+      expect(parsed.targetDate, target);
+      expect(parsed.countsDown, isTrue);
+      expect(parsed.isPaused, isFalse);
+    });
+
+    test('countdown helper factory', () {
+      final timer = ActivityTimer.countdown(const Duration(minutes: 15));
+      expect(timer.countsDown, isTrue);
+      expect(timer.startDate, isNotNull);
+      expect(
+        timer.targetDate.difference(timer.startDate!),
+        const Duration(minutes: 15),
+      );
+    });
+
+    test('chronometer helper factory', () {
+      final timer = ActivityTimer.chronometer();
+      expect(timer.countsDown, isFalse);
+      expect(timer.startDate, isNotNull);
+    });
+  });
 }

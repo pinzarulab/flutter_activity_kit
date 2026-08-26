@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+- **Native Hardware Countdowns & Chronometers (`ActivityTimer`)**:
+  - Hardware-rendered real-time countdown timers and elapsed stopwatches.
+  - Rendered at 60 FPS natively in Apple's SystemUI on the Dynamic Island and Lock Screen using SwiftUI's `Text(timerInterval:pauseTime:countsDown:)` with zero CPU wakeups, zero battery drain, and zero background bridge calls.
+  - Rendered in Android Ongoing Notifications via SystemUI `setUsesChronometer` and `setChronometerCountDown`.
+  - Added `ActivityTimer.countdown()` and `ActivityTimer.chronometer()` factory constructors.
+- **Deep Linking & Foreground Intent Launching**:
+  - Added `FlutterActivityOpenAppIntent` for direct foreground app opening from Dynamic Island / Lock Screen buttons.
+  - Native Phone dialer launcher (`Link(destination: "tel://...")`).
+  - `SceneDelegate` / `AppDelegate` URL context bridge.
+  - Android `PendingIntent.getActivity` with `FLAG_ACTIVITY_SINGLE_TOP` for seamless foreground navigation.
+
 ## 0.2.0
 
 - **Interactive iOS 17+ AppIntents**:

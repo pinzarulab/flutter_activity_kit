@@ -19,18 +19,32 @@ public struct FlutterActivityAttributes: ActivityAttributes {
         public var message: String?
         public var status: String?
 
+        // Hardware-rendered real-time Countdown / Chronometer Timer
+        public var timerStartDate: Date?
+        public var timerTargetDate: Date?
+        public var timerCountsDown: Bool?
+        public var timerIsPaused: Bool?
+
         public init(
             data: [String: String] = [:],
             progress: Double? = nil,
             title: String? = nil,
             message: String? = nil,
-            status: String? = nil
+            status: String? = nil,
+            timerStartDate: Date? = nil,
+            timerTargetDate: Date? = nil,
+            timerCountsDown: Bool? = nil,
+            timerIsPaused: Bool? = nil
         ) {
             self.data = data
             self.progress = progress
             self.title = title
             self.message = message
             self.status = status
+            self.timerStartDate = timerStartDate
+            self.timerTargetDate = timerTargetDate
+            self.timerCountsDown = timerCountsDown
+            self.timerIsPaused = timerIsPaused
         }
     }
 
@@ -126,7 +140,25 @@ struct LiveActivityWidgetLiveActivity: Widget {
                         .font(.headline)
                         .foregroundColor(.white)
                     Spacer()
-                    if let status = context.state.status {
+
+                    // Hardware Real-Time Countdown / Chronometer Timer
+                    if let targetDate = context.state.timerTargetDate {
+                        let startDate = context.state.timerStartDate ?? Date()
+                        let countsDown = context.state.timerCountsDown ?? true
+                        HStack(spacing: 4) {
+                            Image(systemName: countsDown ? "timer" : "stopwatch.fill")
+                                .font(.caption2)
+                                .foregroundColor(accentColor)
+                            Text(timerInterval: startDate...targetDate, pauseTime: nil, countsDown: countsDown)
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .monospacedDigit()
+                                .foregroundColor(accentColor)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(accentColor.opacity(0.3)))
+                    } else if let status = context.state.status {
                         Text(status)
                             .font(.caption)
                             .fontWeight(.semibold)
@@ -233,7 +265,21 @@ struct LiveActivityWidgetLiveActivity: Widget {
 
                 // Expanded Trailing
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let progress = context.state.progress {
+                    if let targetDate = context.state.timerTargetDate {
+                        let startDate = context.state.timerStartDate ?? Date()
+                        let countsDown = context.state.timerCountsDown ?? true
+                        HStack(spacing: 2) {
+                            Image(systemName: countsDown ? "timer" : "stopwatch.fill")
+                                .font(.caption2)
+                                .foregroundColor(accentColor)
+                            Text(timerInterval: startDate...targetDate, pauseTime: nil, countsDown: countsDown)
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .monospacedDigit()
+                                .foregroundColor(accentColor)
+                        }
+                        .padding(.trailing, 8)
+                    } else if let progress = context.state.progress {
                         Text("\(Int(progress * 100))%")
                             .font(.caption)
                             .fontWeight(.bold)
@@ -322,7 +368,15 @@ struct LiveActivityWidgetLiveActivity: Widget {
                         .font(.caption2)
                 }
             } compactTrailing: {
-                if let progress = context.state.progress {
+                if let targetDate = context.state.timerTargetDate {
+                    let startDate = context.state.timerStartDate ?? Date()
+                    let countsDown = context.state.timerCountsDown ?? true
+                    Text(timerInterval: startDate...targetDate, pauseTime: nil, countsDown: countsDown)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .monospacedDigit()
+                        .foregroundColor(accentColor)
+                } else if let progress = context.state.progress {
                     Text("\(Int(progress * 100))%")
                         .font(.caption2)
                         .fontWeight(.bold)

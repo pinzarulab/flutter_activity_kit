@@ -1,4 +1,5 @@
 import 'activity_alert.dart';
+import 'activity_timer.dart';
 
 /// Base interface for dynamic state of a Live Activity.
 ///
@@ -18,7 +19,20 @@ class MapActivityContentState extends ActivityContentState {
   const MapActivityContentState(this.data);
 
   @override
-  Map<String, dynamic> toMap() => Map<String, dynamic>.from(data);
+  Map<String, dynamic> toMap() {
+    final map = <String, dynamic>{};
+    for (final entry in data.entries) {
+      final value = entry.value;
+      if (value is ActivityTimer) {
+        map[entry.key] = value.toMap();
+      } else if (value is ActivityAlert) {
+        map[entry.key] = value.toMap();
+      } else {
+        map[entry.key] = value;
+      }
+    }
+    return map;
+  }
 }
 
 /// Encapsulates the dynamic content of an activity along with metadata.
@@ -35,11 +49,15 @@ class ActivityContent<T extends ActivityContentState> {
   /// Optional alert displayed to the user when this content is pushed.
   final ActivityAlert? alert;
 
+  /// Optional hardware-rendered real-time countdown timer or chronometer.
+  final ActivityTimer? timer;
+
   const ActivityContent({
     required this.state,
     this.staleDate,
     this.relevanceScore,
     this.alert,
+    this.timer,
   });
 
   /// Converts this content wrapper to a serializable map.
@@ -49,6 +67,7 @@ class ActivityContent<T extends ActivityContentState> {
       if (staleDate != null) 'staleDate': staleDate!.millisecondsSinceEpoch,
       if (relevanceScore != null) 'relevanceScore': relevanceScore,
       if (alert != null) 'alert': alert!.toMap(),
+      if (timer != null) 'timer': timer!.toMap(),
     };
   }
 }

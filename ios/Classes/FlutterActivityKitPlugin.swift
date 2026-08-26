@@ -187,13 +187,19 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         let message = rawState["message"] as? String
         let status = rawState["status"] as? String
 
+        let timerConfig = self.parseTimer(from: rawContent, rawState)
+
         let attributes = FlutterActivityAttributes(activityType: activityType, staticData: stringAttributes)
         let initialContentState = FlutterActivityAttributes.ContentState(
             data: stringStateData,
             progress: progress,
             title: title,
             message: message,
-            status: status
+            status: status,
+            timerStartDate: timerConfig.startDate,
+            timerTargetDate: timerConfig.targetDate,
+            timerCountsDown: timerConfig.countsDown,
+            timerIsPaused: timerConfig.isPaused
         )
 
         var staleDate: Date? = nil
@@ -277,12 +283,18 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         let message = rawState["message"] as? String
         let status = rawState["status"] as? String
 
+        let timerConfig = self.parseTimer(from: contentMap, rawState)
+
         let updatedContentState = FlutterActivityAttributes.ContentState(
             data: stringStateData,
             progress: progress,
             title: title,
             message: message,
-            status: status
+            status: status,
+            timerStartDate: timerConfig.startDate,
+            timerTargetDate: timerConfig.targetDate,
+            timerCountsDown: timerConfig.countsDown,
+            timerIsPaused: timerConfig.isPaused
         )
 
         var staleDate: Date? = nil
@@ -325,6 +337,28 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         #endif
     }
 
+    private func parseTimer(from dicts: [String: Any]?...) -> (startDate: Date?, targetDate: Date?, countsDown: Bool?, isPaused: Bool?) {
+        for dict in dicts {
+            guard let map = dict else { continue }
+            let timerMap = map["timer"] as? [String: Any]
+            if let timer = timerMap {
+                var startDate: Date? = nil
+                var targetDate: Date? = nil
+
+                if let startMs = (timer["startDate"] as? NSNumber)?.doubleValue {
+                    startDate = Date(timeIntervalSince1970: startMs / 1000.0)
+                }
+                if let targetMs = (timer["targetDate"] as? NSNumber)?.doubleValue {
+                    targetDate = Date(timeIntervalSince1970: targetMs / 1000.0)
+                }
+                let countsDown = timer["countsDown"] as? Bool ?? true
+                let isPaused = timer["isPaused"] as? Bool ?? false
+                return (startDate, targetDate, countsDown, isPaused)
+            }
+        }
+        return (nil, nil, nil, nil)
+    }
+
     private func endActivity(activityId: String, finalContentMap: [String: Any]?, dismissalPolicyMap: [String: Any]?, result: @escaping FlutterResult) {
         guard #available(iOS 16.1, *) else {
             result(FlutterError(code: "UNSUPPORTED_OS", message: "Live Activities require iOS 16.1+", details: nil))
@@ -347,12 +381,17 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             for (k, v) in rawState {
                 stringStateData[k] = "\(v)"
             }
+            let timerConfig = self.parseTimer(from: finalMap, rawState)
             finalContentState = FlutterActivityAttributes.ContentState(
                 data: stringStateData,
                 progress: (rawState["progress"] as? NSNumber)?.doubleValue,
                 title: rawState["title"] as? String,
                 message: rawState["message"] as? String,
-                status: rawState["status"] as? String
+                status: rawState["status"] as? String,
+                timerStartDate: timerConfig.startDate,
+                timerTargetDate: timerConfig.targetDate,
+                timerCountsDown: timerConfig.countsDown,
+                timerIsPaused: timerConfig.isPaused
             )
             if let ms = (finalMap["staleDate"] as? NSNumber)?.int64Value {
                 staleDate = Date(timeIntervalSince1970: Double(ms) / 1000.0)

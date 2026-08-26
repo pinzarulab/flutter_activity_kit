@@ -18,6 +18,7 @@ export 'src/models/activity_events.dart';
 export 'src/models/activity_instance.dart';
 export 'src/models/activity_session.dart';
 export 'src/models/activity_state.dart';
+export 'src/models/activity_timer.dart';
 export 'src/models/android_options.dart';
 export 'src/models/ios_options.dart';
 export 'src/preview/dynamic_island_preview.dart';

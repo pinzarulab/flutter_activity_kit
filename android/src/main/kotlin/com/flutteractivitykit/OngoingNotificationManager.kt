@@ -248,9 +248,29 @@ class OngoingNotificationManager(private val context: Context) {
             builder.setProgress(100, progressInt, isIndeterminate)
         }
 
-        // Chronometer
-        val isChronometer = (androidOptions["isChronometer"] as? Boolean) ?: false
-        if (isChronometer) {
+        // Hardware Chronometer / Real-time Countdown Timer
+        @Suppress("UNCHECKED_CAST")
+        val timerMap = (contentState["timer"] as? Map<String, Any?>) ?: (androidOptions["timer"] as? Map<String, Any?>)
+        val isChronometer = (androidOptions["isChronometer"] as? Boolean) ?: (timerMap != null)
+
+        if (timerMap != null) {
+            val countsDown = (timerMap["countsDown"] as? Boolean) ?: true
+            val targetMs = (timerMap["targetDate"] as? Number)?.toLong()
+            val startMs = (timerMap["startDate"] as? Number)?.toLong() ?: System.currentTimeMillis()
+
+            builder.setUsesChronometer(true)
+            if (countsDown && targetMs != null) {
+                builder.setWhen(targetMs)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(true)
+                }
+            } else {
+                builder.setWhen(startMs)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(false)
+                }
+            }
+        } else if (isChronometer) {
             builder.setUsesChronometer(true)
             if (androidOptions["chronometerBase"] != null) {
                 val baseMs = (androidOptions["chronometerBase"] as Number).toLong()
