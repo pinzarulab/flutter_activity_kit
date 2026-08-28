@@ -53,6 +53,9 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   ActivitySession<MapActivityAttributes, MapActivityContentState>?
       _sportsSession;
 
+  // Reactive Controller Demo
+  late final ActivityController<Map<String, dynamic>> _workoutController;
+
   int _deliveryStep = 0;
   final List<Map<String, dynamic>> _deliverySteps = [
     {
@@ -173,21 +176,36 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   ];
 
   final List<String> _eventLogs = [];
-  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  final List<void Function()> _cancelListeners = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _initPlatformStatus();
     _subscribeToGlobalEvents();
+
+    _workoutController = ActivityController<Map<String, dynamic>>(
+      initialState: {
+        'title': 'Outdoor Run',
+        'status': 'Running 🏃',
+        'message': 'Pace: 5:12 min/km • Distance: 3.4 km',
+        'progress': 0.45,
+      },
+      activityType: 'WorkoutAttributes',
+      actions: const [
+        ActivityAction(id: 'pause_workout', title: 'Pause', icon: 'ic_media_pause'),
+        ActivityAction(id: 'finish_workout', title: 'Finish', isDestructive: true),
+      ],
+    );
   }
 
   @override
   void dispose() {
     _sportsAutoTimer?.cancel();
-    for (final sub in _subscriptions) {
-      sub.cancel();
+    _workoutController.dispose();
+    for (final cancel in _cancelListeners) {
+      cancel();
     }
     _tabController.dispose();
     super.dispose();
@@ -210,163 +228,137 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   }
 
   void _subscribeToGlobalEvents() {
-    // Action events
-    _subscriptions.add(
-      FlutterActivityKit.actionEvents.listen((event) {
+    // 🎛️ Declarative Action Routing
+    _cancelListeners.add(
+      FlutterActivityKit.onAnyAction((event) {
         _logEvent('Action Tapped: [${event.actionId}] on activity ${event.activityId}');
-        _handleActionTap(event.actionId);
       }),
     );
 
-    // State events
-    _subscriptions.add(
-      FlutterActivityKit.activityStateUpdates.listen((event) {
-        _logEvent('Activity State: ${event.activityId} -> ${event.state.name}');
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('call_driver', (event) async {
+        _logEvent('Action Callback: Calling Driver via Native Phone App');
+        final uri = Uri.parse('tel:+15550199');
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
       }),
     );
 
-    // Push tokens
-    _subscriptions.add(
-      FlutterActivityKit.pushTokenUpdates.listen((event) {
-        _logEvent('Push Token: ${event.activityId} -> ${event.pushToken.substring(0, 10)}...');
-      }),
-    );
-  }
-
-  void _handleActionTap(String actionId) {
-    switch (actionId) {
-      case 'mute_match':
-        _logEvent('Interactive Action: Match Alerts Muted/Unmuted');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.volume_off_rounded, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Match notifications muted from Dynamic Island'),
-              ],
-            ),
-            backgroundColor: Colors.indigo,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        break;
-
-      case 'match_stats':
-        _logEvent('Interactive Action: Opening Match Stats Screen');
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('match_stats', (event) {
+        _logEvent('Action Callback: Opening Match Stats Screen');
         _tabController.animateTo(1);
         _showMatchStats();
-        break;
+      }),
+    );
 
-      case 'call_driver':
-        _logEvent('Interactive Action: Opening Phone App with Driver Number (+1 555-0199)');
-        _openPhoneDialer('+15550199');
-        break;
-
-      case 'add_tip':
-        _logEvent('Interactive Action: Added \$2 Tip for Driver');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.volunteer_activism_rounded, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Added \$2.00 tip for your driver. Thank you!'),
-              ],
-            ),
-            backgroundColor: Colors.amber,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        break;
-
-      case 'cancel_order':
-        _logEvent('Interactive Action: Order Cancellation requested');
-        _endDeliveryActivity();
-        break;
-
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Received Dynamic Island Action: $actionId'),
-            backgroundColor: Colors.blueAccent,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-    }
-  }
-
-  Future<void> _openPhoneDialer(String phoneNumber) async {
-    final uri = Uri(scheme: 'tel', path: phoneNumber);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('mute_match', (event) {
+        _logEvent('Action Callback: Match Muted');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Calling $phoneNumber...'),
-              backgroundColor: Colors.green,
+            const SnackBar(
+              content: Text('Match notifications muted from Live Activity'),
+              backgroundColor: Colors.indigo,
+              duration: Duration(seconds: 2),
             ),
           );
         }
-      }
-    } catch (e) {
-      _logEvent('Error launching phone app: $e');
-    }
+      }),
+    );
+
+    // Push token hook
+    _cancelListeners.add(
+      FlutterActivityKit.onPushToken((activityId, token) {
+        _logEvent('Push Token Synced: ${activityId.substring(0, 8)} -> ${token.substring(0, 10)}...');
+      }),
+    );
   }
 
   void _showMatchStats() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1E293B),
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1C1C1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Live Match Statistics',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white70),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildStatRow('Possession', '58%', '42%'),
-            _buildStatRow('Shots on Target', '7', '4'),
-            _buildStatRow('Fouls', '8', '11'),
-            _buildStatRow('Corner Kicks', '5', '3'),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Center(
+                    child: Text(
+                      'Live Match Statistics',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Center(
+                    child: Text(
+                      'Real Madrid $_homeScore - $_awayScore Barcelona ($_matchMinute\')',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.greenAccent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildStatRow('Possession', '54%', '46%'),
+                  _buildStatRow('Expected Goals (xG)', '2.41', '1.87'),
+                  _buildStatRow('Total Shots', '14', '11'),
+                  _buildStatRow('Shots on Target', '7', '5'),
+                  _buildStatRow('Corner Kicks', '6', '4'),
+                  _buildStatRow('Fouls', '8', '12'),
+                  _buildStatRow('Yellow Cards', '1', '2'),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close Statistics'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _buildStatRow(String title, String homeVal, String awayVal) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(homeVal, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ),
+          Text(title, style: const TextStyle(color: Colors.white70, fontSize: 13)),
           Text(awayVal, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ],
       ),
@@ -380,7 +372,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     });
   }
 
-  // --- Delivery Activity Actions ---
+  // --- Delivery Activity Actions (Fluent Quick-Start API) ---
   Future<void> _startDeliveryActivity() async {
     try {
       if (!_areActivitiesEnabled) {
@@ -391,44 +383,35 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       _deliveryStep = 0;
       final stepData = _deliverySteps[_deliveryStep];
 
-      final session = await FlutterActivityKit.startActivity(
-        attributes: const MapActivityAttributes(
-          {
-            'orderId': 'ORD-54912',
-            'restaurant': 'Bella Pizza',
-            'customer': 'Daniel',
-          },
-          customActivityType: 'DeliveryAttributes',
-        ),
-        content: ActivityContent(
-          state: MapActivityContentState(stepData),
-          timer: stepData['timer'] as ActivityTimer?,
-          relevanceScore: 90.0,
-          alert: const ActivityAlert(
-            title: 'Order Confirmed',
-            body: 'Your pizza order #54912 has been placed.',
+      // 🚀 Fluent Quick-Start API: Start in 1 concise call!
+      final session = await FlutterActivityKit.start(
+        activityType: 'DeliveryAttributes',
+        title: stepData['title'] as String,
+        message: stepData['message'] as String,
+        status: stepData['status'] as String,
+        progress: stepData['progress'] as double,
+        timer: stepData['timer'] as ActivityTimer?,
+        relevanceScore: 90.0,
+        attributes: const {
+          'orderId': 'ORD-54912',
+          'restaurant': 'Bella Pizza',
+          'customer': 'Daniel',
+        },
+        actions: const [
+          ActivityAction(
+            id: 'call_driver',
+            title: 'Call Driver',
+            icon: 'ic_menu_call',
           ),
-        ),
-        iosOptions: const IOSOptions(
-          activityType: 'DeliveryAttributes',
-        ),
-        androidOptions: const AndroidOptions(
-          channelId: 'delivery_channel',
-          channelName: 'Food Deliveries',
-          category: 'progress',
-          priority: 2,
-          actions: [
-            ActivityAction(
-              id: 'call_driver',
-              title: 'Call Driver',
-              icon: 'ic_menu_call',
-            ),
-            ActivityAction(
-              id: 'cancel_order',
-              title: 'Cancel',
-              isDestructive: true,
-            ),
-          ],
+          ActivityAction(
+            id: 'cancel_order',
+            title: 'Cancel',
+            isDestructive: true,
+          ),
+        ],
+        alert: const ActivityAlert(
+          title: 'Order Confirmed',
+          body: 'Your pizza order #54912 has been placed.',
         ),
       );
 
@@ -437,12 +420,6 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       });
 
       _logEvent('Started Delivery Activity: ${session.id}');
-
-      // Listen to session specific updates
-      session.pushTokenStream.listen((token) {
-        _logEvent('Session Token Received: ${token.substring(0, 8)}...');
-        setState(() {});
-      });
     } catch (e) {
       _logEvent('Error starting delivery activity: $e');
     }
@@ -456,14 +433,16 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     final stepData = _deliverySteps[_deliveryStep];
 
     try {
-      await _deliverySession!.update(
-        ActivityContent(
-          state: MapActivityContentState(stepData),
-          timer: stepData['timer'] as ActivityTimer?,
-          alert: ActivityAlert(
-            title: stepData['title'] as String,
-            body: stepData['message'] as String,
-          ),
+      // ⚡ Quick Update directly on session:
+      await _deliverySession!.quickUpdate(
+        title: stepData['title'] as String,
+        message: stepData['message'] as String,
+        status: stepData['status'] as String,
+        progress: stepData['progress'] as double,
+        timer: stepData['timer'] as ActivityTimer?,
+        alert: ActivityAlert(
+          title: stepData['title'] as String,
+          body: stepData['message'] as String,
         ),
       );
       setState(() {});
@@ -476,7 +455,8 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   Future<void> _endDeliveryActivity() async {
     if (_deliverySession == null) return;
     try {
-      await _deliverySession!.end(
+      // 🏁 Quick End:
+      await _deliverySession!.quickEnd(
         dismissalPolicy: ActivityDismissalPolicy.immediate,
       );
       _logEvent('Ended Delivery Activity: ${_deliverySession!.id}');
@@ -488,7 +468,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     }
   }
 
-  // --- Sports Match Activity Actions ---
+  // --- Sports Match Activity Actions (Fluent Quick-Start API) ---
   Future<void> _startSportsActivity({bool autoSimulate = true}) async {
     try {
       if (!_areActivitiesEnabled) {
@@ -504,37 +484,30 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       _matchMinute = initialStep['minute'] as int;
       _matchEventText = initialStep['message'] as String;
 
-      final session = await FlutterActivityKit.startActivity(
-        attributes: const MapActivityAttributes(
-          {
-            'matchId': 'MATCH-REAL-BARCA',
-            'homeTeam': 'Real Madrid',
-            'awayTeam': 'Barcelona',
-            'league': 'Champions League',
-          },
-          customActivityType: 'SportsAttributes',
-        ),
-        content: ActivityContent(
-          state: MapActivityContentState({
-            'title': initialStep['title'] as String,
-            'message': initialStep['message'] as String,
-            'status': initialStep['status'] as String,
-            'progress': _matchMinute / 90.0,
-            'homeScore': _homeScore,
-            'awayScore': _awayScore,
-            'matchMinute': _matchMinute,
-          }),
-        ),
-        androidOptions: const AndroidOptions(
-          channelId: 'sports_channel',
-          channelName: 'Live Sports',
-          category: 'status',
-          priority: 2,
-          actions: [
-            ActivityAction(id: 'match_stats', title: 'Stats'),
-            ActivityAction(id: 'mute_match', title: 'Mute'),
-          ],
-        ),
+      // 🚀 Fluent Quick-Start API:
+      final session = await FlutterActivityKit.start(
+        activityType: 'SportsAttributes',
+        title: initialStep['title'] as String,
+        message: initialStep['message'] as String,
+        status: initialStep['status'] as String,
+        attributes: const {
+          'matchId': 'MATCH-REAL-BARCA',
+          'homeTeam': 'Real Madrid',
+          'awayTeam': 'Barcelona',
+          'league': 'Champions League',
+        },
+        actions: const [
+          ActivityAction(
+            id: 'mute_match',
+            title: 'Mute',
+            icon: 'ic_lock_silent_mode',
+          ),
+          ActivityAction(
+            id: 'match_stats',
+            title: 'Stats',
+            icon: 'ic_menu_info_details',
+          ),
+        ],
       );
 
       setState(() {
@@ -542,88 +515,80 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
         _isAutoSimulating = autoSimulate;
       });
 
-      _logEvent('Started Sports Activity: ${session.id}');
-
+      _logEvent('Started Live Sports Activity: ${session.id}');
       if (autoSimulate) {
-        _startSportsAutoSimulation();
+        _startAutoSportsSimulation();
       }
     } catch (e) {
       _logEvent('Error starting sports activity: $e');
     }
   }
 
-  void _startSportsAutoSimulation() {
+  void _startAutoSportsSimulation() {
     _sportsAutoTimer?.cancel();
-    _isAutoSimulating = true;
-    _sportsAutoTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
-      await _advanceSportsTimeline();
+    _sportsAutoTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (_sportsSession == null) {
+        timer.cancel();
+        return;
+      }
+      _advanceSportsTimeline();
     });
-    setState(() {});
   }
 
   void _toggleSportsAutoSimulation() {
-    if (_isAutoSimulating) {
-      _sportsAutoTimer?.cancel();
-      setState(() => _isAutoSimulating = false);
-      _logEvent('Paused Sports auto-simulation');
-    } else {
-      _startSportsAutoSimulation();
-      _logEvent('Resumed Sports auto-simulation');
-    }
+    setState(() {
+      _isAutoSimulating = !_isAutoSimulating;
+      if (_isAutoSimulating) {
+        _startAutoSportsSimulation();
+        _logEvent('Resumed Sports Auto-Simulation (every 4s)');
+      } else {
+        _sportsAutoTimer?.cancel();
+        _logEvent('Paused Sports Auto-Simulation');
+      }
+    });
   }
 
   Future<void> _advanceSportsTimeline() async {
-    if (_sportsSession == null) {
+    if (_sportsSession == null) return;
+    if (_autoSimStep >= _sportsMatchTimeline.length - 1) {
       _sportsAutoTimer?.cancel();
+      setState(() => _isAutoSimulating = false);
+      _logEvent('Sports match simulation reached full-time');
       return;
     }
 
-    if (_autoSimStep < _sportsMatchTimeline.length - 1) {
-      _autoSimStep++;
-      final step = _sportsMatchTimeline[_autoSimStep];
+    _autoSimStep++;
+    final step = _sportsMatchTimeline[_autoSimStep];
 
-      setState(() {
-        _homeScore = step['home'] as int;
-        _awayScore = step['away'] as int;
-        _matchMinute = step['minute'] as int;
-        _matchEventText = step['message'] as String;
-      });
+    setState(() {
+      _homeScore = step['home'] as int;
+      _awayScore = step['away'] as int;
+      _matchMinute = step['minute'] as int;
+      _matchEventText = step['message'] as String;
+    });
 
-      final alert = step['alert'] as ActivityAlert?;
-
-      try {
-        await _sportsSession!.update(
-          ActivityContent(
-            state: MapActivityContentState({
-              'title': step['title'] as String,
-              'message': step['message'] as String,
-              'status': step['status'] as String,
-              'progress': (_matchMinute / 90.0).clamp(0.0, 1.0),
-              'homeScore': _homeScore,
-              'awayScore': _awayScore,
-              'matchMinute': _matchMinute,
-            }),
-            alert: alert,
-          ),
-        );
-        _logEvent('Auto-Update: ${step['status']} • Score: $_homeScore - $_awayScore');
-      } catch (e) {
-        _logEvent('Error during auto-update: $e');
-      }
-
-      if (_autoSimStep >= _sportsMatchTimeline.length - 1) {
-        _sportsAutoTimer?.cancel();
-        setState(() => _isAutoSimulating = false);
-        _logEvent('🏁 Match simulation reached Full Time');
-      }
-    } else {
-      _sportsAutoTimer?.cancel();
-      setState(() => _isAutoSimulating = false);
+    try {
+      await _sportsSession!.quickUpdate(
+        title: step['title'] as String,
+        message: step['message'] as String,
+        status: step['status'] as String,
+        progress: (_matchMinute / 94.0).clamp(0.0, 1.0),
+        data: {
+          'homeScore': _homeScore,
+          'awayScore': _awayScore,
+          'matchMinute': _matchMinute,
+        },
+        alert: step['alert'] as ActivityAlert?,
+      );
+      _logEvent('Timeline: $_matchMinute\' (${step['status']}) - $_matchEventText');
+    } catch (e) {
+      _logEvent('Error advancing sports timeline: $e');
     }
   }
 
   Future<void> _updateSportsScore(bool homeScored) async {
     if (_sportsSession == null) return;
+
     setState(() {
       if (homeScored) {
         _homeScore++;
@@ -637,23 +602,21 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     });
 
     try {
-      await _sportsSession!.update(
-        ActivityContent(
-          state: MapActivityContentState({
-            'title': 'Real Madrid vs Barcelona',
-            'message': 'GOAL! Score: $_homeScore - $_awayScore',
-            'status': 'Live $_matchMinute\'',
-            'progress': (_matchMinute / 90.0).clamp(0.0, 1.0),
-            'homeScore': _homeScore,
-            'awayScore': _awayScore,
-            'matchMinute': _matchMinute,
-          }),
-          alert: ActivityAlert(
-            title: '⚽ GOAL!',
-            body: homeScored
-                ? 'Real Madrid scored! ($_homeScore - $_awayScore)'
-                : 'Barcelona scored! ($_homeScore - $_awayScore)',
-          ),
+      await _sportsSession!.quickUpdate(
+        title: 'Real Madrid vs Barcelona',
+        message: 'GOAL! Score: $_homeScore - $_awayScore',
+        status: 'Live $_matchMinute\'',
+        progress: (_matchMinute / 90.0).clamp(0.0, 1.0),
+        data: {
+          'homeScore': _homeScore,
+          'awayScore': _awayScore,
+          'matchMinute': _matchMinute,
+        },
+        alert: ActivityAlert(
+          title: '⚽ GOAL!',
+          body: homeScored
+              ? 'Real Madrid scored! ($_homeScore - $_awayScore)'
+              : 'Barcelona scored! ($_homeScore - $_awayScore)',
         ),
       );
       _logEvent('Goal scored! New score: $_homeScore - $_awayScore');
@@ -666,15 +629,11 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     if (_sportsSession == null) return;
     _sportsAutoTimer?.cancel();
     try {
-      await _sportsSession!.end(
-        finalContent: ActivityContent(
-          state: MapActivityContentState({
-            'title': 'Match Ended',
-            'message': 'Full Time: Real Madrid $_homeScore - $_awayScore Barcelona',
-            'status': 'FT',
-            'progress': 1.0,
-          }),
-        ),
+      await _sportsSession!.quickEnd(
+        title: 'Match Ended',
+        message: 'Full Time: Real Madrid $_homeScore - $_awayScore Barcelona',
+        status: 'FT',
+        progress: 1.0,
         dismissalPolicy: ActivityDismissalPolicy.defaultPolicy,
       );
       _logEvent('Ended Sports Activity: ${_sportsSession!.id}');
@@ -691,96 +650,80 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.flash_on_rounded, color: Colors.amber),
-            SizedBox(width: 8),
-            Text('Flutter ActivityKit'),
-          ],
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.local_pizza_rounded), text: 'Food Delivery'),
-            Tab(icon: Icon(Icons.sports_soccer_rounded), text: 'Live Sports'),
-            Tab(icon: Icon(Icons.terminal_rounded), text: 'Events & Tokens'),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          _buildPlatformStatusBar(theme),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildDeliveryTab(theme),
-                _buildSportsTab(theme),
-                _buildLogsAndTokensTab(theme),
-              ],
-            ),
+    // 🎛️ ActivityActionListener wraps UI for declarative action handling
+    return ActivityActionListener(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Row(
+            children: [
+              Icon(Icons.flash_on_rounded, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('Flutter ActivityKit v0.4.0'),
+            ],
           ),
-        ],
+          bottom: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: const [
+              Tab(icon: Icon(Icons.local_pizza_rounded), text: 'Food Delivery'),
+              Tab(icon: Icon(Icons.sports_soccer_rounded), text: 'Live Sports'),
+              Tab(icon: Icon(Icons.sync_alt_rounded), text: 'Reactive Controller'),
+              Tab(icon: Icon(Icons.terminal_rounded), text: 'Events & Tokens'),
+            ],
+          ),
+        ),
+        body: Column(
+          children: [
+            _buildPlatformStatusBar(theme),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildDeliveryTab(theme),
+                  _buildSportsTab(theme),
+                  _buildReactiveControllerTab(theme),
+                  _buildLogsAndTokensTab(theme),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPlatformStatusBar(ThemeData theme) {
     return Container(
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           Icon(
-            _isSupported ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-            size: 16,
-            color: _isSupported ? Colors.green : Colors.orange,
+            _isSupported ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            color: _isSupported ? Colors.green : Colors.red,
+            size: 20,
           ),
-          const SizedBox(width: 6),
-          Text(
-            _isSupported
-                ? 'Supported & Ready'
-                : 'Simulator / Platform Unsupported',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          const Spacer(),
-          if (!_areActivitiesEnabled)
-            InkWell(
-              onTap: () async {
-                final granted = await FlutterActivityKit.requestPermissions();
-                setState(() => _areActivitiesEnabled = granted);
-                _logEvent('Permission request result: $granted');
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock_open_rounded, size: 12, color: Colors.redAccent),
-                    SizedBox(width: 4),
-                    Text(
-                      'Enable Permission',
-                      style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            const Text(
-              'Activities: Enabled',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.green,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _isSupported
+                  ? (_areActivitiesEnabled
+                      ? 'Live Activities & Notifications Active'
+                      : 'Permission Needed')
+                  : 'Live Activities Not Supported on this OS',
+              style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
+            ),
+          ),
+          if (_isSupported && !_areActivitiesEnabled)
+            FilledButton.tonal(
+              onPressed: () async {
+                final granted = await FlutterActivityKit.requestPermissions();
+                setState(() => _areActivitiesEnabled = granted);
+              },
+              child: const Text('Grant'),
             ),
         ],
       ),
@@ -788,146 +731,80 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   }
 
   Widget _buildDeliveryTab(ThemeData theme) {
-    final currentData = _deliverySteps[_deliveryStep];
-    final progress = currentData['progress'] as double;
     final isRunning = _deliverySession != null;
+    final currentStepData = _deliverySteps[_deliveryStep];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Dynamic Island Live Preview Section
-          Text(
-            'Dynamic Island & Lock Screen Preview',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-
-          // Dynamic Island Expanded Preview
-          Center(
-            child: DynamicIslandPreview(
-              style: DynamicIslandStyle.expanded,
-              leading: Row(
-                children: [
-                  const Icon(Icons.local_pizza_rounded, color: Colors.amber, size: 20),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Bella Pizza',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-              trailing: Text(
-                currentData['eta'] as String,
-                style: const TextStyle(
-                  color: Colors.greenAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              center: Column(
+          // Live preview card
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    currentData['title'] as String,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Dynamic Island / Notification Preview',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isRunning ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isRunning ? 'RUNNING (60 FPS)' : 'STOPPED',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isRunning ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    currentData['message'] as String,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 12,
+                  const SizedBox(height: 16),
+                  Center(
+                    child: DynamicIslandPreview(
+                      leading: const Icon(Icons.local_pizza, color: Colors.orange, size: 16),
+                      trailing: Text(
+                        currentStepData['eta'] as String,
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      title: currentStepData['title'] as String,
+                      subtitle: currentStepData['message'] as String,
+                      bottom: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: LinearProgressIndicator(
+                          value: currentStepData['progress'] as double,
+                          color: Colors.orange,
+                          backgroundColor: Colors.orange.withValues(alpha: 0.2),
+                        ),
+                      ),
                     ),
                   ),
                 ],
-              ),
-              bottom: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
-                  minHeight: 4,
-                ),
               ),
             ),
           ),
 
-          const SizedBox(height: 16),
-
-          // Dynamic Island Compact Preview
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              DynamicIslandPreview(
-                style: DynamicIslandStyle.compact,
-                leading: Row(
-                  children: [
-                    const Icon(Icons.local_pizza_rounded, color: Colors.amber, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      currentData['status'] as String,
-                      style: const TextStyle(color: Colors.white, fontSize: 11),
-                    ),
-                  ],
-                ),
-                trailing: Text(
-                  currentData['eta'] as String,
-                  style: const TextStyle(
-                    color: Colors.greenAccent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              const DynamicIslandPreview(
-                style: DynamicIslandStyle.minimal,
-                leading: Icon(Icons.local_pizza_rounded, color: Colors.amber, size: 16),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Android Ongoing Notification Preview
-          Text(
-            'Android Ongoing Notification Preview',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          OngoingNotificationPreview(
-            appName: 'Foodie Deliveries',
-            subText: 'Order #54912',
-            title: currentData['title'] as String,
-            body: currentData['message'] as String,
-            progress: progress,
-            icon: const Icon(Icons.delivery_dining_rounded, size: 16, color: Colors.amber),
-            actions: [
-              TextButton(
-                onPressed: () => _handleActionTap('call_driver'),
-                child: const Text('Call Driver'),
-              ),
-              TextButton(
-                onPressed: () => _handleActionTap('cancel_order'),
-                child: const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
-              ),
-            ],
-          ),
-
           const SizedBox(height: 24),
 
-          // Controls Card
+          // Controls
           Card(
             elevation: 2,
             child: Padding(
@@ -936,51 +813,36 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Live Controls (Native ActivityKit / Android Notification)',
+                    'Order Stage Pipeline',
                     style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    isRunning
-                        ? 'Active Session ID: ${_deliverySession!.id}'
-                        : 'No activity running currently.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isRunning ? Colors.green : Colors.grey,
-                      fontFamily: 'monospace',
-                    ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: currentStepData['progress'] as double,
+                    color: Colors.orange,
+                    backgroundColor: Colors.orange.withValues(alpha: 0.2),
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   const SizedBox(height: 16),
                   if (!isRunning)
                     FilledButton.icon(
                       onPressed: _startDeliveryActivity,
                       icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Start Live Activity'),
+                      label: const Text('Start Order Live Activity (Fluent API)'),
                     )
                   else ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: _deliveryStep < _deliverySteps.length - 1
-                                ? _nextDeliveryStep
-                                : null,
-                            icon: const Icon(Icons.fast_forward_rounded),
-                            label: const Text('Next Stage'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
-                            ),
-                            onPressed: _endDeliveryActivity,
-                            icon: const Icon(Icons.stop_rounded),
-                            label: const Text('End Activity'),
-                          ),
-                        ),
-                      ],
+                    FilledButton.tonalIcon(
+                      onPressed: _nextDeliveryStep,
+                      icon: const Icon(Icons.skip_next_rounded),
+                      label: Text('Advance to Next Stage (${_deliveryStep + 1}/${_deliverySteps.length})'),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                      onPressed: _endDeliveryActivity,
+                      icon: const Icon(Icons.stop_rounded),
+                      label: const Text('End Order Activity'),
                     ),
                   ],
                 ],
@@ -1000,103 +862,80 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Scoreboard Card
+          // Live scoreboard card
           Card(
-            color: const Color(0xFF1E293B),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 2,
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'UEFA Champions League',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Live Match Scoreboard',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isRunning ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isRunning ? 'MATCH LIVE' : 'STOPPED',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isRunning ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       Column(
                         children: [
-                          const CircleAvatar(
-                            backgroundColor: Colors.white10,
-                            radius: 26,
-                            child: Icon(Icons.shield_rounded, color: Colors.white, size: 28),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Real Madrid',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
+                          const Icon(Icons.shield_rounded, size: 36, color: Colors.blue),
+                          const SizedBox(height: 4),
+                          const Text('Real Madrid', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('$_homeScore', style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
                         ],
-                      ),
-                      Text(
-                        '$_homeScore - $_awayScore',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
-                        ),
                       ),
                       Column(
                         children: [
-                          const CircleAvatar(
-                            backgroundColor: Colors.white10,
-                            radius: 26,
-                            child: Icon(Icons.shield_rounded, color: Colors.blueAccent, size: 28),
+                          Text(
+                            'Live $_matchMinute\'',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Barcelona',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
+                          const SizedBox(height: 4),
+                          const Text('VS', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Icon(Icons.shield_rounded, size: 36, color: Colors.red),
+                          const SizedBox(height: 4),
+                          const Text('Barcelona', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('$_awayScore', style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  const SizedBox(height: 12),
+                  Center(
                     child: Text(
-                      'Live $_matchMinute\'',
-                      style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                      _matchEventText,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Lock Screen Banner Simulator
-          DynamicIslandPreview(
-            style: DynamicIslandStyle.lockScreenBanner,
-            title: 'Real Madrid vs Barcelona',
-            subtitle: 'UEFA Champions League • Live $_matchMinute\'',
-            leading: const Icon(Icons.sports_soccer_rounded, color: Colors.greenAccent),
-            trailing: Text(
-              '$_homeScore - $_awayScore',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            bottom: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _matchEventText,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
-                  ),
-                ),
-              ],
             ),
           ),
 
@@ -1125,11 +964,6 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                                 ? Colors.green.withValues(alpha: 0.15)
                                 : Colors.amber.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: _isAutoSimulating
-                                  ? Colors.green.withValues(alpha: 0.5)
-                                  : Colors.amber.withValues(alpha: 0.5),
-                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1221,6 +1055,156 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     );
   }
 
+  Widget _buildReactiveControllerTab(ThemeData theme) {
+    return ActivityBuilder<Map<String, dynamic>>(
+      controller: _workoutController,
+      builder: (context, state, isActive, child) {
+        final progress = (state['progress'] as num?)?.toDouble() ?? 0.0;
+        final status = state['status'] as String? ?? 'Ready';
+        final message = state['message'] as String? ?? '';
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Reactive ActivityController<T>',
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isActive ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isActive ? 'ACTIVE' : 'IDLE',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isActive ? Colors.green : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text('Status: $status', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(message, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                      const SizedBox(height: 12),
+                      LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 8,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Mutate State (Auto-Syncs Live Activity)',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      Text('Progress Slider: ${(progress * 100).toInt()}%'),
+                      Slider(
+                        value: progress,
+                        onChanged: (val) {
+                          _workoutController.value = {
+                            ...state,
+                            'progress': val,
+                            'message': 'Distance: ${(val * 8.0).toStringAsFixed(1)} km',
+                          };
+                        },
+                        onChangeEnd: (_) {
+                          _workoutController.syncImmediately();
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ActionChip(
+                            label: const Text('🏃 Running'),
+                            onPressed: () {
+                              _workoutController.updateState({
+                                ...state,
+                                'status': 'Running 🏃',
+                              });
+                            },
+                          ),
+                          ActionChip(
+                            label: const Text('🚴 Cycling'),
+                            onPressed: () {
+                              _workoutController.updateState({
+                                ...state,
+                                'status': 'Cycling 🚴',
+                              });
+                            },
+                          ),
+                          ActionChip(
+                            label: const Text('⏸️ Paused'),
+                            onPressed: () {
+                              _workoutController.updateState({
+                                ...state,
+                                'status': 'Paused ⏸️',
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (!isActive)
+                        FilledButton.icon(
+                          onPressed: () => _workoutController.start(),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('Start Workout Activity'),
+                        )
+                      else
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                          onPressed: () => _workoutController.end(
+                            finalState: {
+                              ...state,
+                              'status': 'Workout Completed! 🏆',
+                              'progress': 1.0,
+                            },
+                          ),
+                          icon: const Icon(Icons.stop_rounded),
+                          label: const Text('End Workout Activity'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildLogsAndTokensTab(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -1248,17 +1232,17 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                             ? () {
                                 Clipboard.setData(ClipboardData(text: _pushToStartToken!));
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Copied token to clipboard')),
+                                  const SnackBar(content: Text('Push-to-start token copied to clipboard')),
                                 );
                               }
                             : null,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  SelectableText(
-                    _pushToStartToken ?? 'No push-to-start token available.',
-                    style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                  const SizedBox(height: 4),
+                  Text(
+                    _pushToStartToken ?? 'Not generated (Available on physical iOS 17.2+ device)',
+                    style: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace', color: Colors.grey),
                   ),
                 ],
               ),
@@ -1267,51 +1251,36 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
 
           const SizedBox(height: 16),
 
+          // Event Logs Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Live Event Log',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              TextButton.icon(
+              Text('Live Event Stream', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              TextButton(
                 onPressed: () => setState(() => _eventLogs.clear()),
-                icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                label: const Text('Clear'),
+                child: const Text('Clear'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
 
+          // Log List
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.dividerColor.withValues(alpha: 0.2),
-                ),
               ),
+              padding: const EdgeInsets.all(12),
               child: _eventLogs.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No events received yet.\nStart an activity to see live events.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
+                  ? const Center(child: Text('No events yet. Start an activity above.'))
                   : ListView.builder(
-                      padding: const EdgeInsets.all(12),
                       itemCount: _eventLogs.length,
                       itemBuilder: (context, index) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Text(
                             _eventLogs[index],
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontFamily: 'monospace',
-                            ),
+                            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                           ),
                         );
                       },

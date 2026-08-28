@@ -1,4 +1,5 @@
 import 'activity_action.dart';
+import 'activity_timer.dart';
 
 /// Android-specific configuration options for Ongoing Notifications.
 class AndroidOptions {
@@ -53,6 +54,9 @@ class AndroidOptions {
   /// Whether the notification should be ongoing (un-dismissible by swipe).
   final bool ongoing;
 
+  /// Optional hardware countdown timer or chronometer.
+  final ActivityTimer? timer;
+
   /// Optional sound resource or null for silent updates.
   final String? sound;
 
@@ -74,6 +78,7 @@ class AndroidOptions {
     this.priority = 1,
     this.actions = const [],
     this.ongoing = true,
+    this.timer,
     this.sound,
   });
 
@@ -98,6 +103,7 @@ class AndroidOptions {
       'priority': priority,
       'actions': actions.map((a) => a.toMap()).toList(),
       'ongoing': ongoing,
+      if (timer != null) 'timer': timer!.toMap(),
       if (sound != null) 'sound': sound,
     };
   }

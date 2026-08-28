@@ -1,7 +1,32 @@
 # Changelog
 
+## 0.4.0
+
+- **Fluent Quick-Start API (`FlutterActivityKit.start()`, `quickUpdate()`, `quickEnd()`)**:
+  - Start, update, and end Live Activities and Ongoing Notifications in 1 concise line of code without needing nested wrapper classes.
+  - Automatically resolves hardware countdowns, custom activity types, and channel options.
+- **Reactive State Controller (`ActivityController<T>`)**:
+  - Bind any Flutter data model or `ValueNotifier` directly to an activity.
+  - Updating `controller.value = newState` automatically pushes synchronization to the Dynamic Island & Android Notification.
+  - Includes `ActivityBuilder<T>` widget for reactive UI binding.
+- **Declarative Action Routing & Push Hooks (`FlutterActivityKit.onAction()`, `ActivityActionListener`)**:
+  - Register action callbacks anywhere without manual `StreamSubscription` lifecycle management.
+  - `FlutterActivityKit.onPushToken()` helper for easy backend token synchronization.
+- **Updated Example App**:
+  - Refactored example app to showcase the Fluent Quick-Start API, reactive `ActivityController`, `ActivityBuilder`, and `ActivityActionListener`.
+
 ## 0.3.0
 
+- **Fluent Quick-Start API (`FlutterActivityKit.start()`, `quickUpdate()`, `quickEnd()`)**:
+  - Start, update, and end Live Activities and Ongoing Notifications in 1 concise line of code without needing nested wrapper classes.
+  - Automatically resolves hardware countdowns, custom activity types, and channel options.
+- **Reactive State Controller (`ActivityController<T>`)**:
+  - Bind any Flutter data model or `ValueNotifier` directly to an activity.
+  - Updating `controller.value = newState` automatically pushes synchronization to the Dynamic Island & Android Notification.
+  - Includes `ActivityBuilder<T>` widget for reactive UI binding.
+- **Declarative Action Routing & Push Hooks (`FlutterActivityKit.onAction()`, `ActivityActionListener`)**:
+  - Register action callbacks anywhere without manual `StreamSubscription` lifecycle management.
+  - `FlutterActivityKit.onPushToken()` helper for easy backend token synchronization.
 - **Native Hardware Countdowns & Chronometers (`ActivityTimer`)**:
   - Hardware-rendered real-time countdown timers and elapsed stopwatches.
   - Rendered at 60 FPS natively in Apple's SystemUI on the Dynamic Island and Lock Screen using SwiftUI's `Text(timerInterval:pauseTime:countsDown:)` with zero CPU wakeups, zero battery drain, and zero background bridge calls.

@@ -132,4 +132,91 @@ void main() {
     expect(single, isNotNull);
     expect(single!.id, 'test-activity-id-123');
   });
+
+  group('Fluent Quick-Start API', () {
+    test('FlutterActivityKit.start fluent one-liner', () async {
+      final session = await FlutterActivityKit.start(
+        activityType: 'Delivery',
+        title: 'Order Confirmed',
+        message: 'Pizza is baking',
+        status: 'Baking 🍕',
+        progress: 0.25,
+        countdown: const Duration(minutes: 20),
+        actions: const [
+          ActivityAction(id: 'call_driver', title: 'Call Driver'),
+        ],
+      );
+
+      expect(session.id, 'test-activity-id-123');
+      expect(session.state, ActivityState.active);
+
+      final startCall = log.firstWhere((call) => call.method == 'startActivity');
+      final args = startCall.arguments as Map<dynamic, dynamic>;
+      expect(args['activityType'], 'Delivery');
+      final content = args['content'] as Map<dynamic, dynamic>;
+      final state = content['state'] as Map<dynamic, dynamic>;
+      expect(state['title'], 'Order Confirmed');
+      expect(state['status'], 'Baking 🍕');
+      expect(state['progress'], 0.25);
+      expect(content['timer'], isNotNull);
+
+      // quickUpdate
+      await session.quickUpdate(
+        status: 'On the Way 🛵',
+        progress: 0.85,
+      );
+
+      final updateCall = log.firstWhere((call) => call.method == 'updateActivity');
+      final updateArgs = updateCall.arguments as Map<dynamic, dynamic>;
+      final updateContent = updateArgs['content'] as Map<dynamic, dynamic>;
+      final updateState = updateContent['state'] as Map<dynamic, dynamic>;
+      expect(updateState['status'], 'On the Way 🛵');
+      expect(updateState['progress'], 0.85);
+
+      // quickEnd
+      await session.quickEnd(
+        status: 'Delivered 🎉',
+      );
+
+      expect(log.any((call) => call.method == 'endActivity'), isTrue);
+    });
+  });
+
+  group('ActivityController<T>', () {
+    test('starts and syncs reactive state changes', () async {
+      final controller = ActivityController<Map<String, dynamic>>(
+        initialState: {
+          'status': 'Preparing',
+          'progress': 0.1,
+        },
+        activityType: 'Delivery',
+        actions: const [
+          ActivityAction(id: 'cancel_order', title: 'Cancel'),
+        ],
+        syncDebounce: Duration.zero,
+      );
+
+      expect(controller.isActive, isFalse);
+
+      final session = await controller.start();
+      expect(controller.isActive, isTrue);
+      expect(controller.session, session);
+
+      // Mutate state reactive style
+      controller.value = {
+        'status': 'Out for Delivery',
+        'progress': 0.75,
+      };
+
+      expect(log.any((call) => call.method == 'updateActivity'), isTrue);
+
+      await controller.end(finalState: {
+        'status': 'Delivered',
+        'progress': 1.0,
+      });
+
+      expect(controller.isActive, isFalse);
+      controller.dispose();
+    });
+  });
 }
