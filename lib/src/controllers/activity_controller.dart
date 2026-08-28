@@ -3,13 +3,38 @@ import 'package:flutter/foundation.dart';
 
 import '../../flutter_activity_kit.dart';
 
-/// A reactive controller that binds a Flutter state model [T] directly to a Live Activity / Ongoing Notification.
+/// A reactive controller that binds a Flutter state model [T] directly to an iOS Live Activity and Android Ongoing Notification.
 ///
-/// Whenever [value] is updated (e.g. `controller.value = newState` or `controller.update(newState)`),
+/// Whenever [value] is updated (e.g. `controller.value = newState` or `controller.updateState(newState)`),
 /// the Live Activity and Android Notification are automatically synchronized with built-in debouncing
 /// to prevent native platform channel throttling and lag.
+///
+/// Example:
+/// ```dart
+/// // 1. Define reactive controller
+/// final controller = ActivityController<OrderState>(
+///   initialState: OrderState(status: 'Preparing', progress: 0.1),
+///   activityType: 'DeliveryAttributes',
+///   stateToMap: (state) => {
+///     'status': state.status,
+///     'progress': state.progress,
+///   },
+///   autoStart: true,
+/// );
+///
+/// // 2. Mutate state anywhere in your app:
+/// controller.value = OrderState(status: 'Out for Delivery', progress: 0.8);
+///
+/// // 3. Bind to UI:
+/// ActivityBuilder<OrderState>(
+///   controller: controller,
+///   builder: (context, state, isActive, child) {
+///     return Text(state.status);
+///   },
+/// );
+/// ```
 class ActivityController<T> extends ValueNotifier<T> {
-  /// The activity type identifier (e.g. 'Delivery', 'SportsMatch').
+  /// The activity type identifier matching your Swift `ActivityAttributes` struct (e.g. `'DeliveryAttributes'`).
   final String activityType;
 
   /// Custom mapping function that converts state [T] into a JSON-compatible map.
@@ -30,7 +55,7 @@ class ActivityController<T> extends ValueNotifier<T> {
   /// Android notification channel name.
   final String? channelName;
 
-  /// Android notification priority.
+  /// Android notification priority (defaults to 2 for high priority).
   final int androidPriority;
 
   /// Debounce interval for platform synchronizations to prevent flooding iOS ActivityKit / Android Notifications.
@@ -50,9 +75,12 @@ class ActivityController<T> extends ValueNotifier<T> {
   /// The active [ActivitySession], or null if not currently running.
   ActivitySession? get session => _session;
 
-  /// Whether the Live Activity is currently active.
+  /// Whether the Live Activity is currently active on the device.
   bool get isActive => _session != null && _session!.state == ActivityState.active;
 
+  /// Creates an [ActivityController] with an [initialState].
+  ///
+  /// Set [autoStart] to `true` to immediately start the Live Activity upon creation.
   ActivityController({
     required T initialState,
     this.activityType = 'GenericActivity',
@@ -72,6 +100,8 @@ class ActivityController<T> extends ValueNotifier<T> {
   }
 
   /// Starts the Live Activity with the current [value].
+  ///
+  /// Returns the created [ActivitySession].
   Future<ActivitySession> start() async {
     if (_session != null && isActive) {
       return _session!;
@@ -114,6 +144,8 @@ class ActivityController<T> extends ValueNotifier<T> {
   }
 
   /// Sets a new state [newValue] and automatically synchronizes the Live Activity.
+  ///
+  /// Updates are debounced according to [syncDebounce] to prevent platform channel congestion.
   @override
   set value(T newValue) {
     super.value = newValue;
@@ -121,6 +153,8 @@ class ActivityController<T> extends ValueNotifier<T> {
   }
 
   /// Updates the state and synchronizes with the Live Activity immediately.
+  ///
+  /// Pass an optional [alert] to trigger a banner/sound on the Lock Screen.
   Future<void> updateState(T newState, {ActivityAlert? alert}) async {
     super.value = newState;
     if (_session != null && isActive) {
@@ -138,7 +172,9 @@ class ActivityController<T> extends ValueNotifier<T> {
     await _executeSync();
   }
 
-  /// Ends the running Live Activity.
+  /// Ends the running Live Activity and releases the session.
+  ///
+  /// Pass [finalState] to display a completion message on the lock screen.
   Future<void> end({
     T? finalState,
     ActivityDismissalPolicy dismissalPolicy = ActivityDismissalPolicy.defaultPolicy,
@@ -161,7 +197,7 @@ class ActivityController<T> extends ValueNotifier<T> {
     _session = null;
   }
 
-  /// Registers an action callback on this controller.
+  /// Registers an action button callback on this controller.
   void onAction(void Function(ActivityActionEvent event) listener) {
     _actionListeners.add(listener);
   }

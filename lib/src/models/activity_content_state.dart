@@ -1,10 +1,10 @@
 import 'activity_alert.dart';
 import 'activity_timer.dart';
 
-/// Base interface for dynamic state of a Live Activity.
+/// Base interface for dynamic state of a Live Activity or Ongoing Notification.
 ///
 /// Content state represents properties that change dynamically over the lifetime
-/// of the activity (e.g. ETA, current stage, delivery progress, sports score).
+/// of the activity (e.g. ETA, current stage, delivery progress, sports match score).
 abstract class ActivityContentState {
   const ActivityContentState();
 
@@ -13,7 +13,10 @@ abstract class ActivityContentState {
 }
 
 /// Generic map-backed implementation of [ActivityContentState].
+///
+/// Automatically handles nested [ActivityTimer] and [ActivityAlert] serialization.
 class MapActivityContentState extends ActivityContentState {
+  /// The dynamic state key-value pairs.
   final Map<String, dynamic> data;
 
   const MapActivityContentState(this.data);
@@ -35,18 +38,18 @@ class MapActivityContentState extends ActivityContentState {
   }
 }
 
-/// Encapsulates the dynamic content of an activity along with metadata.
+/// Encapsulates the dynamic content of an activity along with metadata such as stale dates, alerts, and timers.
 class ActivityContent<T extends ActivityContentState> {
-  /// The dynamic state object.
+  /// The dynamic state model or map.
   final T state;
 
-  /// Optional date at which the activity's content is considered stale.
+  /// Optional date at which the activity's content is considered stale by iOS.
   final DateTime? staleDate;
 
-  /// Priority relevance score for iOS (0.0 - 100.0).
+  /// Priority relevance score for iOS Lock Screen ranking (0.0 to 100.0).
   final double? relevanceScore;
 
-  /// Optional alert displayed to the user when this content is pushed.
+  /// Optional alert popup and sound played upon updating the activity.
   final ActivityAlert? alert;
 
   /// Optional hardware-rendered real-time countdown timer or chronometer.

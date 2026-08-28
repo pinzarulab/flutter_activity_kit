@@ -1,20 +1,25 @@
-/// Base interface for static attributes of a Live Activity.
+/// Base interface for immutable static attributes of an iOS Live Activity or Android Notification.
 ///
-/// Static attributes are immutable properties established when the activity is started
-/// (e.g., order ID, restaurant name, driver name).
+/// Static attributes are immutable properties established when the activity is initiated
+/// (e.g., order ID, restaurant name, sports match ID, driver information).
 abstract class ActivityAttributes {
   const ActivityAttributes();
 
   /// Converts the static attributes into a JSON-compatible map.
   Map<String, dynamic> toMap();
 
-  /// Optional activity identifier or type name matching Swift struct.
+  /// The activity identifier or Swift `ActivityAttributes` struct type name.
   String get activityType => runtimeType.toString();
 }
 
 /// Generic map-backed implementation of [ActivityAttributes].
+///
+/// Ideal for quick prototyping without defining custom Dart model classes.
 class MapActivityAttributes extends ActivityAttributes {
+  /// The raw attributes key-value map.
   final Map<String, dynamic> data;
+
+  /// Custom Swift `ActivityAttributes` struct name (e.g. `'DeliveryAttributes'`).
   final String? customActivityType;
 
   const MapActivityAttributes(this.data, {this.customActivityType});

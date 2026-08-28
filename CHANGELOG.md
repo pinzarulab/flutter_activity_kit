@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+- **Documentation Overhaul & Developer Guide**:
+  - Comprehensive documentation covering the Fluent Quick-Start API, reactive `ActivityController<T>`, and `ActivityActionListener`.
+  - Added full guide for backend integration with WebSockets, Firebase Cloud Firestore, Apple APNs HTTP/2 Live Activity Pushes, and FCM background handlers.
+  - Added detailed native setup instructions for Swift Package Manager (SPM), iOS 17 AppIntents, and Android 13+ Notification permissions.
+  - Added hardware chronometer and 60 FPS zero-battery countdown guides.
+- **Smart Concurrency Debouncing in `ActivityController`**:
+  - Built-in `syncDebounce` (150ms) and in-flight concurrency queue to eliminate platform channel throttling and latency during rapid UI state mutations.
+
 ## 0.4.0
 
 - **Fluent Quick-Start API (`FlutterActivityKit.start()`, `quickUpdate()`, `quickEnd()`)**:

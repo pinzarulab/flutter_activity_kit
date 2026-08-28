@@ -1,12 +1,23 @@
 /// Alert configuration displayed when an activity starts or updates.
+///
+/// Triggers a banner alert and sound/haptic feedback on the Lock Screen or Apple Watch.
+///
+/// Example:
+/// ```dart
+/// const ActivityAlert(
+///   title: '⚽ GOAL!',
+///   body: 'Real Madrid scores in the 82nd minute!',
+///   sound: 'default',
+/// )
+/// ```
 class ActivityAlert {
-  /// The title of the alert banner / notification.
+  /// The title of the alert banner / notification popup.
   final String title;
 
   /// The body message text.
   final String body;
 
-  /// Optional custom sound name (or 'default' for standard sound).
+  /// Optional custom sound resource name (or `'default'` for standard system sound).
   final String? sound;
 
   const ActivityAlert({
@@ -15,7 +26,7 @@ class ActivityAlert {
     this.sound,
   });
 
-  /// Converts this alert configuration to a map.
+  /// Converts this alert configuration into a serializable map.
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'title': title,
@@ -24,7 +35,7 @@ class ActivityAlert {
     };
   }
 
-  /// Creates an alert from a serialized map.
+  /// Creates an [ActivityAlert] from a serialized map.
   factory ActivityAlert.fromMap(Map<String, dynamic> map) {
     return ActivityAlert(
       title: map['title'] as String? ?? '',
