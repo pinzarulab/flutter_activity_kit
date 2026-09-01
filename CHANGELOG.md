@@ -2,6 +2,16 @@
 
 ## 0.5.1
 
+- **Pure Dart UI DSL & Transpiler**:
+  - Build 100% custom Live Activity widgets in pure Dart using `LAWidget`, `LAColumn`, `LARow`, `LAText`, `LAImage`, `LAProgressBar`, `LAButton`, `LASpacer`, `LAContainer`, and `LATimer`.
+  - Transpile Dart widget definitions directly into native SwiftUI WidgetKit code without writing Swift.
+- **Smart Swift Generator & Folder Scanning**:
+  - Automatically scans `lib/live_activity_widgets/` for Dart widget definitions.
+  - Added pre-configured, production-ready templates: `navigation` (Mini-Map route canvas), `delivery`, `sports`, `workout`, and `generic`.
+- **Mini-Map & Ride Tracking**:
+  - Added Vector Route Canvas for navigation and ridesharing Live Activities in Dynamic Island and Lock Screen.
+- **Lock Screen Banner Layout Optimization**:
+  - Compacted Lock Screen banner padding and controls to prevent clipping within Apple's 160pt height constraint.
 - Added explicit timer removal with `clearTimer`, including delivery arrival updates.
 - Stopped Android countdowns at zero using a persisted native expiration alarm.
 - Kept iOS timer capsules compact and right-aligned instead of filling the row.

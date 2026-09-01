@@ -12,6 +12,8 @@ import 'src/models/android_options.dart';
 import 'src/models/ios_options.dart';
 
 export 'src/controllers/activity_controller.dart';
+export 'src/dsl/live_activity_components.dart';
+export 'src/dsl/live_activity_widget_definition.dart';
 export 'src/models/activity_action.dart';
 export 'src/models/activity_alert.dart';
 export 'src/models/activity_attributes.dart';

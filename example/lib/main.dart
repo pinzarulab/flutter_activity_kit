@@ -876,7 +876,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
             children: [
               Icon(Icons.flash_on_rounded, color: Colors.amber),
               SizedBox(width: 8),
-              Text('Flutter ActivityKit v0.5.0'),
+              Text('Flutter ActivityKit v0.5.1'),
             ],
           ),
           bottom: TabBar(
@@ -978,21 +978,23 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isRunning
-                              ? Colors.green.withValues(alpha: 0.15)
-                              : Colors.grey.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          isRunning ? 'MAP ON LOCK SCREEN & ISLAND' : 'STOPPED',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: isRunning ? Colors.green : Colors.grey,
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isRunning
+                                ? Colors.green.withValues(alpha: 0.15)
+                                : Colors.grey.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isRunning ? 'MAP ON LOCK SCREEN & ISLAND' : 'STOPPED',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isRunning ? Colors.green : Colors.grey,
+                            ),
                           ),
                         ),
                       ),
