@@ -1,286 +1,285 @@
-# flutter_activity_kit ⚡️
+# flutter_activity_kit
 
-[![pub package](https://img.shields.io/badge/pub-v0.4.1-blue.svg)](https://pub.dev/packages/flutter_activity_kit)
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
+[![pub package](https://img.shields.io/badge/pub-v0.5.0-blue.svg)](https://pub.dev/packages/flutter_activity_kit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![iOS: 16.1+](https://img.shields.io/badge/iOS-16.1%2B-lightgrey.svg)](https://developer.apple.com/documentation/activitykit)
 [![Android: 7.0+](https://img.shields.io/badge/Android-7.0%2B-green.svg)](https://developer.android.com/develop/ui/views/notifications)
 
-**Declarative iOS Live Activities (Dynamic Island & Lock Screen) and Android Ongoing Notifications for Flutter.**
+Unified Flutter API for iOS Live Activities and Android ongoing notifications.
 
-Unified cross-platform API for real-time order tracking, live sports matches, rideshare ETAs, hardware-rendered 60 FPS countdowns, reactive controllers, interactive background buttons, and APNs push token synchronization.
+## Features
 
----
+- iOS 16.1+ Lock Screen Live Activities and Dynamic Island content.
+- Android ongoing notifications with progress, timers, icons, sound, and actions.
+- OS-rendered countdowns and chronometers without a Dart polling timer.
+- APNs push-to-update and iOS 17.2+ push-to-start tokens.
+- Reactive `ActivityController<T>` with serialized, debounced updates.
+- In-app Flutter previews.
+- Persisted Android activity metadata across process restarts.
 
-## ✨ Features
-
-- 🏝️ **iOS Live Activities & Dynamic Island**: Full support for Expanded, Compact Leading/Trailing, Minimal bubbles, and Lock Screen banners.
-- 🔔 **Android Ongoing Notifications**: Pinned, rich notifications with custom action buttons, progress bars, categories, and chronometer count-up/countdown timers.
-- 🪄 **Fluent Quick-Start API**: Start, update, and end activities in a single readable call—eliminating over 70% of boilerplate.
-- 🔄 **Reactive `ActivityController<T>`**: Bind any Flutter state model or `ValueNotifier` directly to an activity. When state changes, the Live Activity and Android Notification update automatically with built-in debouncing.
-- ⏱️ **Native Hardware Countdowns & Chronometers (`ActivityTimer`)**: 60 FPS hardware timing rendered directly by Apple and Android SystemUI with **zero CPU wakeups and zero battery drain**.
-- 🔘 **Interactive AppIntents & Actions**: Background button interactions (e.g. *"Mute"*, *"Tip"*) and foreground app-opening actions (e.g. *"Stats"*, *"Call Driver"*) bridged into Dart.
-- 🎛️ **Declarative Action Routing**: Simple `FlutterActivityKit.onAction('id', callback)` and `ActivityActionListener` widget.
-- 📡 **Push Token Management**: Effortless bridging of APNs push-to-update and iOS 17.2+ push-to-start tokens.
-- 👁️ **In-App Flutter Previews**: Built-in `DynamicIslandPreview` and `OngoingNotificationPreview` widgets to inspect and preview live activities inside any Flutter view.
-
----
-
-## 🚀 Getting Started
-
-### 1. Add Dependency
+## Install
 
 ```yaml
 dependencies:
-  flutter_activity_kit: ^0.4.1
+  flutter_activity_kit: ^0.5.0
 ```
 
----
+## Platform setup
 
-### 2. Platform Setup
+### iOS
 
-#### 🍏 iOS Setup (Live Activities & Dynamic Island)
+1. Set Runner and Widget Extension deployment targets to iOS 16.1 or newer.
+2. Add to `ios/Runner/Info.plist`:
 
-1. Set iOS Deployment Target to **iOS 16.1** or higher in Xcode.
-2. In `ios/Runner/Info.plist`, enable Live Activities:
-   ```xml
-   <key>NSSupportsLiveActivities</key>
-   <true/>
-   <key>NSSupportsLiveActivitiesFrequentUpdates</key>
-   <true/>
-   ```
-3. Add a **Widget Extension** to your Xcode project:
-   - In Xcode: `File` ➔ `New` ➔ `Target...` ➔ `Widget Extension`.
-   - Name it `LiveActivityWidget` and check **Include Live Activity**.
-4. In your Xcode Widget Extension, import `ActivityKit`, `WidgetKit`, `SwiftUI`, and your shared `FlutterActivityAttributes`.
+```xml
+<key>NSSupportsLiveActivities</key>
+<true/>
+<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+<true/>
+```
 
----
+3. Add a Widget Extension with **Include Live Activity** enabled.
+4. Generate a widget whose `FlutterActivityAttributes` contract matches the plugin:
 
-#### 🤖 Android Setup (Ongoing Notifications)
+```bash
+dart run flutter_activity_kit:generate_swift \
+  --name Delivery \
+  --output ios/LiveActivityWidget
+```
 
-1. Add the notification permission in `android/app/src/main/AndroidManifest.xml`:
-   ```xml
-   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-   ```
-2. Request notification permissions at runtime with `FlutterActivityKit.requestPermissions()`.
+Add generated `DeliveryWidget.swift` to Widget Extension target. Do not replace
+`FlutterActivityAttributes` with a differently named attributes type: ActivityKit
+requires plugin and widget extension to use matching attributes and content-state
+schemas.
 
----
+### iOS foreground action links
 
-## 📖 Usage Guide
+Dart cannot execute inside a Widget Extension process. Route a Live Activity
+button into running app with URL:
 
-### 🪄 1. Fluent Quick-Start API (1-Liner)
+```swift
+Link(
+    destination: URL(
+        string: "flutteractivitykit://action/open_order?activityId=\(context.activityID)"
+    )!
+) {
+    Text("Open order")
+}
+```
 
-Start a Live Activity and Android Ongoing Notification in a single clean call:
+Register `flutteractivitykit` under `CFBundleURLTypes`. Apps using scenes should
+forward URLs from `SceneDelegate`:
+
+```swift
+import Flutter
+import UIKit
+import flutter_activity_kit
+
+class SceneDelegate: FlutterSceneDelegate {
+    override func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        super.scene(scene, willConnectTo: session, options: connectionOptions)
+        connectionOptions.urlContexts.forEach { routeActivityURL($0.url) }
+    }
+
+    override func scene(
+        _ scene: UIScene,
+        openURLContexts URLContexts: Set<UIOpenURLContext>
+    ) {
+        var remaining = Set<UIOpenURLContext>()
+        for context in URLContexts {
+            if !routeActivityURL(context.url) { remaining.insert(context) }
+        }
+        if !remaining.isEmpty {
+            super.scene(scene, openURLContexts: remaining)
+        }
+    }
+
+    @discardableResult
+    private func routeActivityURL(_ url: URL) -> Bool {
+        guard url.scheme == "flutteractivitykit" else { return false }
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let actionId = url.host == "action"
+            ? url.path.split(separator: "/").first.map(String.init)
+            : url.host
+        let activityId = components?.queryItems?
+            .first(where: { $0.name == "activityId" })?.value ?? ""
+        guard let actionId = actionId else { return false }
+        FlutterActivityKitPlugin.sendActionEvent(
+            activityId: activityId,
+            actionId: actionId
+        )
+        return true
+    }
+}
+```
+
+Do not also route `flutteractivitykit` URLs in `AppDelegate`; doing both emits
+the same action more than once.
+
+Background `AppIntent` work must be implemented in native extension code or a
+backend. A Widget Extension cannot call a Dart callback while Flutter engine is
+not running.
+
+### Android
+
+Plugin manifest includes `POST_NOTIFICATIONS`. Request runtime permission before
+starting an activity on Android 13+:
+
+```dart
+final granted = await FlutterActivityKit.requestPermissions();
+if (!granted) return;
+```
+
+Use a valid monochrome drawable as `AndroidOptions.smallIcon` in production.
+If a Dart action calls `canLaunchUrl()` for `tel:`, declare Android 11+
+package visibility in app manifest:
+
+```xml
+<queries>
+    <intent>
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="tel"/>
+    </intent>
+</queries>
+```
+
+## Quick start
 
 ```dart
 import 'package:flutter_activity_kit/flutter_activity_kit.dart';
 
-// 🚀 Start in 1 readable call:
 final session = await FlutterActivityKit.start(
   activityType: 'Delivery',
-  title: 'Order Confirmed',
-  message: 'Bella Pizza is preparing your order',
-  status: 'Preparing 🍕',
+  title: 'Order confirmed',
+  message: 'Pizza is being prepared',
+  status: 'Preparing',
   progress: 0.15,
-  // ⏱️ 60 FPS zero-battery hardware countdown
   countdown: const Duration(minutes: 25),
   actions: const [
-    ActivityAction(id: 'call_driver', title: 'Call Driver'),
-    ActivityAction(id: 'cancel_order', title: 'Cancel', isDestructive: true),
+    ActivityAction(
+      id: 'open_order',
+      title: 'Open',
+      behavior: ActivityActionBehavior.opensApp,
+    ),
+    ActivityAction(
+      id: 'cancel_order',
+      title: 'Cancel',
+      behavior: ActivityActionBehavior.background,
+      payload: {'source': 'notification'},
+    ),
   ],
 );
 
-// ⚡ Update directly on the session:
 await session.quickUpdate(
-  status: 'On the Way 🛵',
+  status: 'On the way',
   progress: 0.85,
-  message: 'Driver Alex is 3 mins away',
+  message: 'Driver is three minutes away',
 );
 
-// 🏁 End cleanly:
 await session.quickEnd(
-  status: 'Delivered 🎉',
+  status: 'Delivered',
+  dismissalPolicy: ActivityDismissalPolicy.immediate,
 );
 ```
 
----
+Android action behavior:
 
-### 🔄 2. Reactive State Controller (`ActivityController<T>`)
+- `opensApp`: opens app, then delivers event to Dart.
+- `background`: sends broadcast without opening UI. Event is queued while
+  process and plugin initialize; business-critical background work should use
+  native Android code or a background execution framework.
+- `deepLink`: opens `ActivityAction.uri` using Android intent resolver.
 
-Bind any state model or `ValueNotifier` directly to an activity. When your app state changes, the Live Activity updates automatically with smart debouncing:
+Listen in Dart:
 
 ```dart
-class OrderState {
-  final String status;
-  final double progress;
-  final String message;
+final unregister = FlutterActivityKit.onAction('open_order', (event) {
+  openOrder(event.activityId);
+});
 
-  const OrderState({required this.status, required this.progress, required this.message});
+// Later:
+unregister();
+```
+
+## APNs push updates
+
+Request push-to-update token when starting:
+
+```dart
+final session = await FlutterActivityKit.start(
+  activityType: 'Delivery',
+  title: 'Order confirmed',
+  iosPushType: 'token',
+);
+
+final unregister = FlutterActivityKit.onPushToken((activityId, token) {
+  backend.registerLiveActivityToken(activityId, token);
+});
+```
+
+APNs request requires app-specific topic and credentials:
+
+```text
+apns-topic: com.example.app.push-type.liveactivity
+apns-push-type: liveactivity
+```
+
+```json
+{
+  "aps": {
+    "timestamp": 1788264000,
+    "event": "update",
+    "content-state": {
+      "data": {"orderId": "42"},
+      "title": "Order update",
+      "message": "Driver is nearby",
+      "status": "Arriving",
+      "progress": 0.9
+    }
+  }
 }
+```
 
-// 1. Create the controller
+`getPushToStartToken()` uses package's generic `FlutterActivityAttributes` type.
+
+## Reactive controller
+
+```dart
 final controller = ActivityController<OrderState>(
-  initialState: const OrderState(status: 'Baking', progress: 0.3, message: 'In oven'),
+  initialState: initialOrder,
   activityType: 'Delivery',
   stateToMap: (state) => {
     'status': state.status,
     'progress': state.progress,
     'message': state.message,
   },
-  autoStart: true,
 );
 
-// 2. Just update the value anywhere in your app:
-controller.value = const OrderState(status: 'Delivered', progress: 1.0, message: 'Enjoy!');
-// 🪄 Dynamic Island & Android Notification sync automatically!
-
-// 3. Bind to Flutter UI with ActivityBuilder:
-ActivityBuilder<OrderState>(
-  controller: controller,
-  builder: (context, state, isActive, child) {
-    return Text('${state.status} - ${(state.progress * 100).toInt()}%');
-  },
-)
+controller.syncErrors.listen(logActivityError);
+await controller.start();
+controller.value = nextOrder;
+await controller.end(finalState: deliveredOrder);
+controller.dispose();
 ```
 
----
+Explicit `start`, `updateState`, `syncImmediately`, and `end` calls return errors.
+Automatic debounced updates report through `syncErrors`, `lastSyncError`, and
+Flutter error reporting.
 
-### ⏱️ 3. Native Hardware Countdowns & Chronometers (`ActivityTimer`)
-
-Render smooth, real-time counting clocks directly in Apple and Android SystemUI with **zero battery drain**:
-
-```dart
-// 1. Countdown Timer (e.g. Delivery ETA / Oven timer)
-final countdownTimer = ActivityTimer.countdown(const Duration(minutes: 25));
-
-// 2. Elapsed Chronometer (e.g. Sports Match / Stopwatch)
-final matchTimer = ActivityTimer.chronometer(start: matchKickoffDate);
-
-await session.quickUpdate(
-  title: 'Real Madrid vs Barcelona',
-  timer: matchTimer, // ⏱️ Ticking live on Lock Screen & Dynamic Island
-);
-```
-
----
-
-### 🎛️ 4. Declarative Action Routing
-
-Listen to action button clicks without manual `StreamSubscription` boilerplate:
-
-```dart
-// Hook specific actions anywhere:
-FlutterActivityKit.onAction('call_driver', (event) async {
-  final uri = Uri.parse('tel:+15550199');
-  if (await canLaunchUrl(uri)) await launchUrl(uri);
-});
-
-FlutterActivityKit.onAction('match_stats', (event) {
-  showModalBottomSheet(...);
-});
-
-// Or declaratively wrap your widget tree:
-ActivityActionListener(
-  actions: {
-    'call_driver': (event) => _callDriver(),
-    'match_stats': (event) => _openStatsModal(),
-  },
-  child: HomeScreen(),
-)
-```
-
----
-
-### 🌐 5. Real-Time API & Backend Push Integration
-
-#### A. In-App Real-Time Stream (WebSocket / Firebase Firestore)
-```dart
-FirebaseFirestore.instance
-    .collection('orders')
-    .doc(orderId)
-    .snapshots()
-    .listen((snapshot) {
-  final data = snapshot.data()!;
-  controller.value = OrderState(
-    status: data['status'],
-    progress: (data['progress'] as num).toDouble(),
-    message: data['driverMessage'] ?? '',
-  );
-});
-```
-
-#### B. Remote APNs Push Updates (When App is Closed or Screen Locked)
-1. Hook token registration in Flutter:
-   ```dart
-   FlutterActivityKit.onPushToken((activityId, token) {
-     myBackendApi.registerToken(activityId, token);
-   });
-   ```
-
-2. Send APNs HTTP/2 Live Activity payload from your server:
-   ```http
-   POST https://api.sandbox.push.apple.com/3/device/<PUSH_TOKEN>
-   apns-topic: com.example.myApp.push-type.liveactivity
-   apns-push-type: liveactivity
-   apns-priority: 10
-   ```
-   ```json
-   {
-     "aps": {
-       "timestamp": 1724660900,
-       "event": "update",
-       "content-state": {
-         "title": "Real Madrid vs Barcelona",
-         "message": "⚽ GOAL! Bellingham (3 - 1)",
-         "status": "GOAL! 82'",
-         "progress": 0.88
-       },
-       "alert": {
-         "title": "⚽ GOAL! Real Madrid",
-         "body": "Jude Bellingham scores!"
-       }
-     }
-   }
-   ```
-
----
-
-## 🎨 In-App Flutter Previews
-
-Test and visually verify your Dynamic Island and Ongoing Notifications directly inside your Flutter widget tree:
-
-```dart
-// Expanded Dynamic Island Preview
-DynamicIslandPreview(
-  leading: const Icon(Icons.local_pizza, color: Colors.orange),
-  trailing: const Text('12m', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-  title: 'Bella Pizza',
-  subtitle: 'Baking in stone oven',
-  bottom: const LinearProgressIndicator(value: 0.5, color: Colors.orange),
-)
-
-// Android Ongoing Notification Preview
-OngoingNotificationPreview(
-  appName: 'Foodie Delivery',
-  subText: 'Order #9921',
-  title: 'Out for Delivery',
-  body: 'Driver is 5 mins away',
-  progress: 0.75,
-  actions: [
-    TextButton(onPressed: () {}, child: const Text('Call Driver')),
-  ],
-)
-```
-
----
-
-## 🧪 Running Tests
+## Tests
 
 ```bash
+flutter analyze
 flutter test
+cd example && flutter build apk --debug
+cd example && flutter build ios --simulator
+dart pub publish --dry-run
 ```
 
----
+## License
 
-## 📄 License
-
-MIT License © 2026 Flutter ActivityKit Contributors.
+MIT

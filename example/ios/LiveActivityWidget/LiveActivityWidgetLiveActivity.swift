@@ -6,9 +6,6 @@
 import ActivityKit
 import WidgetKit
 import SwiftUI
-#if canImport(AppIntents)
-import AppIntents
-#endif
 
 // MARK: - Flutter Activity Attributes (Matches Flutter ActivityKit Bridge)
 public struct FlutterActivityAttributes: ActivityAttributes {
@@ -57,79 +54,11 @@ public struct FlutterActivityAttributes: ActivityAttributes {
     }
 }
 
-// MARK: - Interactive AppIntents for iOS 17+
-#if canImport(AppIntents)
-/// Background action intent
-@available(iOS 17.0, *)
-public struct FlutterActivityActionIntent: LiveActivityIntent {
-    public static var title: LocalizedStringResource = "Flutter Activity Action"
-    public static var isDiscoverable: Bool = false
-
-    @Parameter(title: "Activity ID")
-    public var activityId: String
-
-    @Parameter(title: "Action ID")
-    public var actionId: String
-
-    public init() {
-        self.activityId = ""
-        self.actionId = ""
-    }
-
-    public init(activityId: String, actionId: String) {
-        self.activityId = activityId
-        self.actionId = actionId
-    }
-
-    public func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("FlutterActivityKitActionEvent"),
-            object: nil,
-            userInfo: ["activityId": activityId, "actionId": actionId]
-        )
-        return .result()
-    }
-}
-
-/// Foreground action intent that opens the main app
-@available(iOS 17.0, *)
-public struct FlutterActivityOpenAppIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Flutter Activity Open App Action"
-    public static var isDiscoverable: Bool = false
-    public static var openAppWhenRun: Bool = true
-
-    @Parameter(title: "Activity ID")
-    public var activityId: String
-
-    @Parameter(title: "Action ID")
-    public var actionId: String
-
-    public init() {
-        self.activityId = ""
-        self.actionId = ""
-    }
-
-    public init(activityId: String, actionId: String) {
-        self.activityId = activityId
-        self.actionId = actionId
-    }
-
-    @MainActor
-    public func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("FlutterActivityKitActionEvent"),
-            object: nil,
-            userInfo: ["activityId": activityId, "actionId": actionId]
-        )
-        return .result()
-    }
-}
-#endif
-
 struct LiveActivityWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: FlutterActivityAttributes.self) { context in
             let isDelivery = context.attributes.activityType.contains("Delivery") || context.attributes.staticData["orderId"] != nil
+            let isSports = context.attributes.activityType.contains("Sports") || context.attributes.staticData["matchId"] != nil
             let accentColor: Color = isDelivery ? .orange : .green
             let iconName: String = isDelivery ? "bag.fill" : "sportscourt.fill"
 
@@ -183,7 +112,7 @@ struct LiveActivityWidgetLiveActivity: Widget {
                 // Action Buttons Row
                 HStack(spacing: 8) {
                     if isDelivery {
-                        Link(destination: URL(string: "tel://15550199")!) {
+                        Link(destination: URL(string: "flutteractivitykit://action/call_driver?activityId=\(context.activityID)")!) {
                             Label("Call Driver", systemImage: "phone.fill")
                                 .font(.caption2)
                                 .fontWeight(.bold)
@@ -191,51 +120,27 @@ struct LiveActivityWidgetLiveActivity: Widget {
                         .buttonStyle(.borderedProminent)
                         .tint(.orange)
 
-                        #if canImport(AppIntents)
-                        if #available(iOS 17.0, *) {
-                            Button(intent: FlutterActivityActionIntent(activityId: context.activityID, actionId: "add_tip")) {
-                                Label("Add Tip ($2)", systemImage: "dollarsign.circle.fill")
-                                    .font(.caption2)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.white)
+                        Link(destination: URL(string: "flutteractivitykit://action/add_tip?activityId=\(context.activityID)")!) {
+                            Label("Add Tip ($2)", systemImage: "dollarsign.circle.fill")
+                                .font(.caption2)
                         }
-                        #endif
+                        .buttonStyle(.bordered)
+                        .tint(.white)
                     } else {
-                        #if canImport(AppIntents)
-                        if #available(iOS 17.0, *) {
-                            Button(intent: FlutterActivityActionIntent(activityId: context.activityID, actionId: "mute_match")) {
-                                Label("Mute Match", systemImage: "bell.slash.fill")
-                                    .font(.caption2)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.white)
-
-                            Button(intent: FlutterActivityOpenAppIntent(activityId: context.activityID, actionId: "match_stats")) {
-                                Label("Match Stats", systemImage: "chart.bar.fill")
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.green)
-                        } else {
-                            Link(destination: URL(string: "flutteractivitykit://match_stats")!) {
-                                Label("Match Stats", systemImage: "chart.bar.fill")
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.green)
+                        Link(destination: URL(string: "flutteractivitykit://action/mute_match?activityId=\(context.activityID)")!) {
+                            Label("Mute Match", systemImage: "bell.slash.fill")
+                                .font(.caption2)
                         }
-                        #else
-                        Link(destination: URL(string: "flutteractivitykit://match_stats")!) {
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+
+                        Link(destination: URL(string: "flutteractivitykit://action/match_stats?activityId=\(context.activityID)")!) {
                             Label("Match Stats", systemImage: "chart.bar.fill")
                                 .font(.caption2)
                                 .fontWeight(.bold)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
-                        #endif
                     }
                 }
                 .padding(.top, 2)
@@ -244,7 +149,10 @@ struct LiveActivityWidgetLiveActivity: Widget {
             .background(Color.black.opacity(0.85))
             .activityBackgroundTint(Color.black.opacity(0.85))
             .activitySystemActionForegroundColor(Color.white)
-            .widgetURL(URL(string: isDelivery ? "flutteractivitykit://delivery_order" : "flutteractivitykit://match_stats"))
+            .widgetURL(URL(string: isSports
+                ? "flutteractivitykit://action/match_stats?activityId=\(context.activityID)"
+                : "flutteractivitykit://action/open_activity?activityId=\(context.activityID)"
+            ))
         } dynamicIsland: { context in
             let isDelivery = context.attributes.activityType.contains("Delivery") || context.attributes.staticData["orderId"] != nil
             let accentColor: Color = isDelivery ? .orange : .green
@@ -311,7 +219,7 @@ struct LiveActivityWidgetLiveActivity: Widget {
 
                         HStack(spacing: 8) {
                             if isDelivery {
-                                Link(destination: URL(string: "tel://15550199")!) {
+                                Link(destination: URL(string: "flutteractivitykit://action/call_driver?activityId=\(context.activityID)")!) {
                                     Label("Call", systemImage: "phone.fill")
                                         .font(.caption2)
                                         .fontWeight(.bold)
@@ -319,40 +227,20 @@ struct LiveActivityWidgetLiveActivity: Widget {
                                 .buttonStyle(.borderedProminent)
                                 .tint(.orange)
                             } else {
-                                #if canImport(AppIntents)
-                                if #available(iOS 17.0, *) {
-                                    Button(intent: FlutterActivityActionIntent(activityId: context.activityID, actionId: "mute_match")) {
-                                        Label("Mute", systemImage: "bell.slash.fill")
-                                            .font(.caption2)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .tint(.white)
-
-                                    Button(intent: FlutterActivityOpenAppIntent(activityId: context.activityID, actionId: "match_stats")) {
-                                        Label("Stats", systemImage: "chart.bar.fill")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.green)
-                                } else {
-                                    Link(destination: URL(string: "flutteractivitykit://match_stats")!) {
-                                        Label("Stats", systemImage: "chart.bar.fill")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.green)
+                                Link(destination: URL(string: "flutteractivitykit://action/mute_match?activityId=\(context.activityID)")!) {
+                                    Label("Mute", systemImage: "bell.slash.fill")
+                                        .font(.caption2)
                                 }
-                                #else
-                                Link(destination: URL(string: "flutteractivitykit://match_stats")!) {
+                                .buttonStyle(.bordered)
+                                .tint(.white)
+
+                                Link(destination: URL(string: "flutteractivitykit://action/match_stats?activityId=\(context.activityID)")!) {
                                     Label("Stats", systemImage: "chart.bar.fill")
                                         .font(.caption2)
                                         .fontWeight(.bold)
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .tint(.green)
-                                #endif
                             }
                         }
                         .padding(.top, 2)

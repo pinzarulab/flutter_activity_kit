@@ -47,8 +47,7 @@ class MethodChannelFlutterActivityKit extends FlutterActivityKitPlatform {
 
   @override
   Future<bool> requestPermissions() async {
-    final result =
-        await methodChannel.invokeMethod<bool>('requestPermissions');
+    final result = await methodChannel.invokeMethod<bool>('requestPermissions');
     return result ?? false;
   }
 
@@ -111,7 +110,8 @@ class MethodChannelFlutterActivityKit extends FlutterActivityKitPlatform {
   Future<void> endActivity({
     required String activityId,
     ActivityContent? finalContent,
-    ActivityDismissalPolicy dismissalPolicy = ActivityDismissalPolicy.defaultPolicy,
+    ActivityDismissalPolicy dismissalPolicy =
+        ActivityDismissalPolicy.defaultPolicy,
   }) async {
     final payload = <String, dynamic>{
       'activityId': activityId,

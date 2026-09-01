@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "flutter_activity_kit",
     platforms: [
-        .iOS("13.0")
+        .iOS("16.1")
     ],
     products: [
         .library(name: "flutter-activity-kit", targets: ["flutter_activity_kit"])

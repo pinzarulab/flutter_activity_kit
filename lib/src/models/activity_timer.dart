@@ -1,7 +1,7 @@
 /// Represents a native hardware-rendered real-time countdown or chronometer.
 ///
-/// On iOS (Dynamic Island & Lock Screen), hardware timers are rendered at 60 FPS
-/// by Apple's SystemUI using zero CPU wakeups, zero battery drain, and zero background bridge calls.
+/// On iOS (Dynamic Island & Lock Screen), timers are rendered by SwiftUI without
+/// a Dart polling loop or repeated platform-channel calls.
 /// On Android, hardware timers use SystemUI Chronometer in Ongoing Notifications.
 class ActivityTimer {
   /// The starting reference date of the timer. Defaults to [DateTime.now()].

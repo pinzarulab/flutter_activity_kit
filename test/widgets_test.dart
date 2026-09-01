@@ -24,12 +24,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Status: Initial Order Status (Active: false)'), findsOneWidget);
+    expect(find.text('Status: Initial Order Status (Active: false)'),
+        findsOneWidget);
 
     controller.value = 'Out for Delivery';
     await tester.pump();
 
-    expect(find.text('Status: Out for Delivery (Active: false)'), findsOneWidget);
+    expect(
+        find.text('Status: Out for Delivery (Active: false)'), findsOneWidget);
 
     controller.dispose();
   });

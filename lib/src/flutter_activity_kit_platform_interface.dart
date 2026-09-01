@@ -32,10 +32,11 @@ abstract class FlutterActivityKitPlatform extends PlatformInterface {
 
   /// Checks whether Live Activities are enabled by the user in system settings.
   Future<bool> areActivitiesEnabled() {
-    throw UnimplementedError('areActivitiesEnabled() has not been implemented.');
+    throw UnimplementedError(
+        'areActivitiesEnabled() has not been implemented.');
   }
 
-  /// Requests notification and Live Activity permissions from the user.
+  /// Requests notification permission from the user.
   Future<bool> requestPermissions() {
     throw UnimplementedError('requestPermissions() has not been implemented.');
   }
@@ -68,7 +69,8 @@ abstract class FlutterActivityKitPlatform extends PlatformInterface {
   Future<void> endActivity({
     required String activityId,
     ActivityContent? finalContent,
-    ActivityDismissalPolicy dismissalPolicy = ActivityDismissalPolicy.defaultPolicy,
+    ActivityDismissalPolicy dismissalPolicy =
+        ActivityDismissalPolicy.defaultPolicy,
   }) {
     throw UnimplementedError('endActivity() has not been implemented.');
   }

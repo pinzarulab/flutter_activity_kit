@@ -25,7 +25,8 @@ class ActivityBuilder<T> extends StatelessWidget {
   final ActivityController<T> controller;
 
   /// Builder callback that provides the [context], current [state], [isActive] flag, and optional cached [child].
-  final Widget Function(BuildContext context, T state, bool isActive, Widget? child) builder;
+  final Widget Function(
+      BuildContext context, T state, bool isActive, Widget? child) builder;
 
   /// Optional static child widget passed to [builder] to avoid unnecessary subtree rebuilds.
   final Widget? child;

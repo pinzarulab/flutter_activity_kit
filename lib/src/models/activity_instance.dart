@@ -57,6 +57,21 @@ class ActivityInstance {
     };
   }
 
+  ActivityInstance copyWith({
+    ActivityState? state,
+    Map<String, dynamic>? contentState,
+    String? pushToken,
+  }) {
+    return ActivityInstance(
+      id: id,
+      activityType: activityType,
+      state: state ?? this.state,
+      attributes: attributes,
+      contentState: contentState ?? this.contentState,
+      pushToken: pushToken ?? this.pushToken,
+    );
+  }
+
   @override
   String toString() =>
       'ActivityInstance(id: $id, type: $activityType, state: $state, pushToken: $pushToken)';

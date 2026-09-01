@@ -7,10 +7,15 @@ import ActivityKit
 
 public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     public static var instance: FlutterActivityKitPlugin?
+    private static var pendingPreRegistrationActions: [(String, String, [String: Any]?)] = []
 
     private var pushTokenEventSink: FlutterEventSink?
     private var stateUpdateEventSink: FlutterEventSink?
     private var actionEventSink: FlutterEventSink?
+    private var pendingPushTokenEvents: [[String: Any]] = []
+    private var pendingStateEvents: [[String: Any]] = []
+    private var pendingActionEvents: [[String: Any]] = []
+    private var recentActionEvents: [String: Date] = [:]
 
     #if canImport(ActivityKit)
     private var activeTasks: [String: [Task<Void, Never>]] = [:]
@@ -45,6 +50,10 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
 
         let instance = FlutterActivityKitPlugin()
         FlutterActivityKitPlugin.instance = instance
+        pendingPreRegistrationActions.forEach {
+            instance.sendActionEvent(activityId: $0.0, actionId: $0.1, payload: $0.2)
+        }
+        pendingPreRegistrationActions.removeAll()
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
         registrar.addApplicationDelegate(instance)
 
@@ -520,10 +529,16 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             for await tokenData in activity.pushTokenUpdates {
                 let token = tokenData.map { String(format: "%02.2hhx", $0) }.joined()
                 DispatchQueue.main.async { [weak self] in
-                    self?.pushTokenEventSink?([
+                    guard let self = self else { return }
+                    let event: [String: Any] = [
                         "activityId": activityId,
                         "pushToken": token
-                    ])
+                    ]
+                    if let sink = self.pushTokenEventSink {
+                        sink(event)
+                    } else {
+                        self.pendingPushTokenEvents.append(event)
+                    }
                 }
             }
         }
@@ -534,10 +549,16 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             for await state in activity.activityStateUpdates {
                 let stateStr = self.stateToString(state)
                 DispatchQueue.main.async { [weak self] in
-                    self?.stateUpdateEventSink?([
+                    guard let self = self else { return }
+                    let event: [String: Any] = [
                         "activityId": activityId,
                         "state": stateStr
-                    ])
+                    ]
+                    if let sink = self.stateUpdateEventSink {
+                        sink(event)
+                    } else {
+                        self.pendingStateEvents.append(event)
+                    }
                 }
             }
         }
@@ -584,29 +605,80 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
     // Handlers for individual event streams
     fileprivate func setPushTokenSink(_ sink: FlutterEventSink?) {
         self.pushTokenEventSink = sink
+        if let sink = sink, !pendingPushTokenEvents.isEmpty {
+            pendingPushTokenEvents.forEach { sink($0) }
+            pendingPushTokenEvents.removeAll()
+        }
     }
 
     fileprivate func setStateUpdateSink(_ sink: FlutterEventSink?) {
         self.stateUpdateEventSink = sink
+        if let sink = sink, !pendingStateEvents.isEmpty {
+            pendingStateEvents.forEach { sink($0) }
+            pendingStateEvents.removeAll()
+        }
     }
 
     fileprivate func setActionEventSink(_ sink: FlutterEventSink?) {
         self.actionEventSink = sink
+        if let sink = sink, !pendingActionEvents.isEmpty {
+            pendingActionEvents.forEach { sink($0) }
+            pendingActionEvents.removeAll()
+        }
     }
 
     public func sendActionEvent(activityId: String, actionId: String, payload: [String: Any]? = nil) {
         DispatchQueue.main.async { [weak self] in
-            self?.actionEventSink?([
+            guard let self = self else { return }
+            let eventKey = "\(activityId)|\(actionId)"
+            let now = Date()
+            if let previous = self.recentActionEvents[eventKey],
+               now.timeIntervalSince(previous) < 0.75 {
+                return
+            }
+            self.recentActionEvents[eventKey] = now
+            if self.recentActionEvents.count > 50 {
+                self.recentActionEvents = self.recentActionEvents.filter {
+                    now.timeIntervalSince($0.value) < 5
+                }
+            }
+            let event: [String: Any] = [
                 "activityId": activityId,
                 "actionId": actionId,
                 "payload": payload as Any
-            ])
+            ]
+            if let sink = self.actionEventSink {
+                sink(event)
+            } else {
+                self.pendingActionEvents.append(event)
+            }
         }
+    }
+
+    public func application(
+        _ application: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+    ) -> Bool {
+        guard url.scheme == "flutteractivitykit" else { return false }
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let actionId = url.host == "action"
+            ? url.path.split(separator: "/").first.map(String.init)
+            : url.host
+        guard let actionId = actionId, !actionId.isEmpty else { return false }
+        let activityId = components?.queryItems?
+            .first(where: { $0.name == "activityId" })?.value ?? ""
+        sendActionEvent(activityId: activityId, actionId: actionId)
+        return true
     }
 
     public static func sendActionEvent(activityId: String, actionId: String, payload: [String: Any]? = nil) {
         DispatchQueue.main.async {
-            instance?.sendActionEvent(activityId: activityId, actionId: actionId, payload: payload)
+            if let instance = instance {
+                instance.sendActionEvent(activityId: activityId, actionId: actionId, payload: payload)
+            } else {
+                pendingPreRegistrationActions.append((activityId, actionId, payload))
+            }
         }
     }
 }

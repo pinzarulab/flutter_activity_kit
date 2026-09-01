@@ -70,7 +70,8 @@ class _ActivityActionListenerState extends State<ActivityActionListener> {
 
     _subscription = stream.listen((event) {
       widget.onAction?.call(event);
-      if (widget.actions != null && widget.actions!.containsKey(event.actionId)) {
+      if (widget.actions != null &&
+          widget.actions!.containsKey(event.actionId)) {
         widget.actions![event.actionId]!(event);
       }
     });

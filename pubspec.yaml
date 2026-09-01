@@ -1,6 +1,6 @@
 name: flutter_activity_kit
 description: "Declarative iOS Live Activities (Dynamic Island & Lock Screen) and Android Ongoing Notifications with push token sync, rich state models, and preview widgets."
-version: 0.4.1
+version: 0.5.0
 homepage: https://github.com/pinzarulab/flutter_activity_kit
 repository: https://github.com/pinzarulab/flutter_activity_kit
 issue_tracker: https://github.com/pinzarulab/flutter_activity_kit/issues

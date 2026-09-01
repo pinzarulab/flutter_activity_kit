@@ -68,6 +68,9 @@ class ActivityController<T> extends ValueNotifier<T> {
   Timer? _debounceTimer;
   bool _isSyncing = false;
   bool _hasPendingSync = false;
+  Completer<void>? _syncCompleter;
+  final StreamController<Object> _syncErrors = StreamController.broadcast();
+  Object? _lastSyncError;
 
   final List<void Function(ActivityActionEvent)> _actionListeners = [];
   final List<void Function(String token)> _pushTokenListeners = [];
@@ -76,7 +79,14 @@ class ActivityController<T> extends ValueNotifier<T> {
   ActivitySession? get session => _session;
 
   /// Whether the Live Activity is currently active on the device.
-  bool get isActive => _session != null && _session!.state == ActivityState.active;
+  bool get isActive =>
+      _session != null && _session!.state == ActivityState.active;
+
+  /// Most recent automatic synchronization error, if any.
+  Object? get lastSyncError => _lastSyncError;
+
+  /// Errors produced by automatic/debounced synchronization.
+  Stream<Object> get syncErrors => _syncErrors.stream;
 
   /// Creates an [ActivityController] with an [initialState].
   ///
@@ -95,7 +105,13 @@ class ActivityController<T> extends ValueNotifier<T> {
     bool autoStart = false,
   }) : super(initialState) {
     if (autoStart) {
-      unawaited(start());
+      unawaited(() async {
+        try {
+          await start();
+        } catch (error, stackTrace) {
+          _reportSyncError(error, stackTrace);
+        }
+      }());
     }
   }
 
@@ -158,6 +174,7 @@ class ActivityController<T> extends ValueNotifier<T> {
   Future<void> updateState(T newState, {ActivityAlert? alert}) async {
     super.value = newState;
     if (_session != null && isActive) {
+      await _waitForSyncs();
       _debounceTimer?.cancel();
       _debounceTimer = null;
       final content = _resolveContent(newState);
@@ -169,7 +186,8 @@ class ActivityController<T> extends ValueNotifier<T> {
   Future<void> syncImmediately() async {
     _debounceTimer?.cancel();
     _debounceTimer = null;
-    await _executeSync();
+    await _waitForSyncs();
+    await _executeSync(rethrowError: true);
   }
 
   /// Ends the running Live Activity and releases the session.
@@ -177,10 +195,13 @@ class ActivityController<T> extends ValueNotifier<T> {
   /// Pass [finalState] to display a completion message on the lock screen.
   Future<void> end({
     T? finalState,
-    ActivityDismissalPolicy dismissalPolicy = ActivityDismissalPolicy.defaultPolicy,
+    ActivityDismissalPolicy dismissalPolicy =
+        ActivityDismissalPolicy.defaultPolicy,
   }) async {
     _debounceTimer?.cancel();
     _debounceTimer = null;
+
+    await _waitForSyncs();
 
     if (_session == null) return;
 
@@ -221,7 +242,7 @@ class ActivityController<T> extends ValueNotifier<T> {
     });
   }
 
-  Future<void> _executeSync() async {
+  Future<void> _executeSync({bool rethrowError = false}) async {
     if (_session == null || !isActive) return;
 
     if (_isSyncing) {
@@ -231,18 +252,56 @@ class ActivityController<T> extends ValueNotifier<T> {
 
     _isSyncing = true;
     _hasPendingSync = false;
+    final completer = Completer<void>();
+    _syncCompleter = completer;
 
     try {
       final content = _resolveContent(value);
       await _session!.update(content);
-    } catch (_) {
-      // Ignored
+    } catch (error, stackTrace) {
+      _reportSyncError(
+        error,
+        stackTrace,
+        reportToFlutter: !rethrowError,
+      );
+      if (rethrowError) rethrow;
     } finally {
       _isSyncing = false;
+      completer.complete();
+      if (identical(_syncCompleter, completer)) {
+        _syncCompleter = null;
+      }
       if (_hasPendingSync) {
         _hasPendingSync = false;
         unawaited(_executeSync());
       }
+    }
+  }
+
+  void _reportSyncError(
+    Object error,
+    StackTrace stackTrace, {
+    bool reportToFlutter = true,
+  }) {
+    _lastSyncError = error;
+    if (!_syncErrors.isClosed) {
+      _syncErrors.add(error);
+    }
+    if (reportToFlutter) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'flutter_activity_kit',
+          context: ErrorDescription('while synchronizing an activity'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _waitForSyncs() async {
+    while (_syncCompleter != null) {
+      await _syncCompleter!.future;
     }
   }
 
@@ -275,6 +334,7 @@ class ActivityController<T> extends ValueNotifier<T> {
     _pushTokenSub?.cancel();
     _actionListeners.clear();
     _pushTokenListeners.clear();
+    unawaited(_syncErrors.close());
     super.dispose();
   }
 }

@@ -80,18 +80,19 @@ class FlutterActivityKit {
   static Future<bool> areActivitiesEnabled() =>
       _platform.areActivitiesEnabled();
 
-  /// Requests notification and Live Activity permissions from the user.
+  /// Requests notification permission from the user.
   ///
   /// On Android 13+ (API 33+), this presents the native runtime `POST_NOTIFICATIONS` permission prompt.
-  /// On iOS, this ensures notification authorization is granted.
+  /// On iOS, this requests alert/sound/badge authorization. Live Activities do
+  /// not expose a separate prompt; use [areActivitiesEnabled] for availability.
   ///
   /// Returns `true` if granted by the user; otherwise `false`.
-  static Future<bool> requestPermissions() =>
-      _platform.requestPermissions();
+  static Future<bool> requestPermissions() => _platform.requestPermissions();
 
   /// Retrieves the Push-to-Start token on iOS 17.2+ for triggering Live Activities remotely via APNs.
   ///
-  /// Pass an optional [activityType] to retrieve the token for a specific ActivityAttributes type.
+  /// [activityType] is retained for source compatibility but ignored: this
+  /// package uses one generic `FlutterActivityAttributes` type.
   /// Returns a hexadecimal token string, or `null` if unsupported or disabled.
   static Future<String?> getPushToStartToken({String? activityType}) =>
       _platform.getPushToStartToken(activityType: activityType);
@@ -101,12 +102,12 @@ class FlutterActivityKit {
   /// Eliminates the need to construct nested wrapper classes ([ActivityContent], [MapActivityAttributes], [IOSOptions], [AndroidOptions]).
   ///
   /// Parameters:
-  /// - [activityType]: The custom Swift ActivityAttributes type name (e.g. `'DeliveryAttributes'`).
+  /// - [activityType]: Logical activity label stored in generic iOS attributes and used by Android channels.
   /// - [title]: Main headline text displayed on Lock Screen and notifications.
   /// - [message]: Secondary descriptive text or status update.
   /// - [status]: Short badge or state text (e.g. `'Baking 🍕'`, `'Live 74\''`).
   /// - [progress]: Optional progress value from `0.0` to `1.0`.
-  /// - [timer]: An [ActivityTimer] instance for 60 FPS hardware chronometers or countdowns.
+  /// - [timer]: An OS-rendered [ActivityTimer] chronometer or countdown.
   /// - [countdown]: Shorthand [Duration] to create an automatic hardware countdown timer.
   /// - [chronometer]: Shorthand to create an elapsed stop-clock timer.
   /// - [attributes]: Immutable static attributes passed to iOS/Android upon creation.
@@ -118,9 +119,11 @@ class FlutterActivityKit {
   /// - [alert]: Optional sound/vibration alert popup triggered on the lock screen.
   /// - [staleDate]: Date after which iOS marks this activity as outdated if no updates arrive.
   /// - [relevanceScore]: Float score determining priority when multiple activities compete on Lock Screen.
+  /// - [iosPushType]: Set to `'token'` to request an APNs push-to-update token.
   ///
   /// Returns an [ActivitySession] instance with quick update methods.
-  static Future<ActivitySession<MapActivityAttributes, MapActivityContentState>> start({
+  static Future<ActivitySession<MapActivityAttributes, MapActivityContentState>>
+      start({
     String activityType = 'GenericActivity',
     String? title,
     String? message,
@@ -138,6 +141,7 @@ class FlutterActivityKit {
     ActivityAlert? alert,
     DateTime? staleDate,
     double? relevanceScore,
+    String? iosPushType,
   }) async {
     final stateMap = <String, dynamic>{};
     if (title != null) stateMap['title'] = title;
@@ -175,6 +179,7 @@ class FlutterActivityKit {
       activityType: activityType,
       relevanceScore: relevanceScore,
       staleDate: staleDate,
+      pushType: iosPushType,
     );
 
     final effectiveAndroidOptions = AndroidOptions(
@@ -202,7 +207,7 @@ class FlutterActivityKit {
   /// final session = await FlutterActivityKit.startActivity(
   ///   attributes: MyCustomAttributes(orderId: '123'),
   ///   content: ActivityContent(state: MyCustomState(status: 'On the way')),
-  ///   iosOptions: IOSOptions(activityType: 'OrderAttributes'),
+  ///   iosOptions: IOSOptions(activityType: 'Delivery'),
   /// );
   /// ```
   static Future<ActivitySession<A, C>> startActivity<
@@ -247,7 +252,8 @@ class FlutterActivityKit {
   static Future<void> endActivity({
     required String activityId,
     ActivityContent? finalContent,
-    ActivityDismissalPolicy dismissalPolicy = ActivityDismissalPolicy.defaultPolicy,
+    ActivityDismissalPolicy dismissalPolicy =
+        ActivityDismissalPolicy.defaultPolicy,
   }) {
     return _platform.endActivity(
       activityId: activityId,
@@ -326,8 +332,7 @@ class FlutterActivityKit {
       _platform.activityStateUpdates;
 
   /// Global stream of interactive action button clicks dispatched from Lock Screen, Dynamic Island, and Android notifications.
-  static Stream<ActivityActionEvent> get actionEvents =>
-      _platform.actionEvents;
+  static Stream<ActivityActionEvent> get actionEvents => _platform.actionEvents;
 
   /// Stream of push token updates filtered specifically for [activityId].
   static Stream<String> pushTokenUpdatesFor(String activityId) {

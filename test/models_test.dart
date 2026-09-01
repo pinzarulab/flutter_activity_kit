@@ -70,6 +70,8 @@ void main() {
         icon: 'ic_cancel',
         isDestructive: true,
         authenticationRequired: true,
+        behavior: ActivityActionBehavior.background,
+        payload: {'reason': 'user'},
       );
       final map = action.toMap();
       expect(map['id'], 'cancel_order');
@@ -82,6 +84,8 @@ void main() {
       expect(parsed.title, action.title);
       expect(parsed.isDestructive, isTrue);
       expect(parsed.authenticationRequired, isTrue);
+      expect(parsed.behavior, ActivityActionBehavior.background);
+      expect(parsed.payload, {'reason': 'user'});
     });
   });
 
@@ -98,6 +102,7 @@ void main() {
         actions: const [
           ActivityAction(id: 'call_driver', title: 'Call Driver'),
         ],
+        timer: ActivityTimer.countdown(const Duration(minutes: 5)),
       );
 
       final map = options.toMap();
@@ -112,6 +117,7 @@ void main() {
       expect(parsed.isChronometer, isTrue);
       expect(parsed.actions.length, 1);
       expect(parsed.actions.first.id, 'call_driver');
+      expect(parsed.timer?.countsDown, isTrue);
     });
 
     test('IOSOptions serialization', () {
@@ -153,7 +159,8 @@ void main() {
       );
 
       final map = content.toMap();
-      expect(map['state'], {'status': 'Cooking', 'etaMinutes': 15, 'progress': 0.3});
+      expect(map['state'],
+          {'status': 'Cooking', 'etaMinutes': 15, 'progress': 0.3});
       expect(map['relevanceScore'], 50.0);
       expect(map['alert']?['title'], 'Updated');
     });

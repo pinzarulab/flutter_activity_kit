@@ -69,6 +69,7 @@ class ActivitySession<A extends ActivityAttributes,
       content: content,
       alert: alert,
     );
+    _instance = _instance.copyWith(contentState: content.state.toMap());
   }
 
   /// Quick helper to update the activity with simple properties without manual [ActivityContent] wrapping.
@@ -78,7 +79,7 @@ class ActivitySession<A extends ActivityAttributes,
   /// - [message]: Updated body or status message.
   /// - [status]: Short badge or state text.
   /// - [progress]: Progress indicator value between 0.0 and 1.0.
-  /// - [timer]: Updated [ActivityTimer] for 60 FPS hardware countdowns.
+  /// - [timer]: Updated OS-rendered [ActivityTimer].
   /// - [countdown]: Shorthand [Duration] to set a countdown clock.
   /// - [chronometer]: Shorthand to start an elapsed chronometer.
   /// - [data]: Additional custom key-value pairs stored in state.
@@ -127,6 +128,7 @@ class ActivitySession<A extends ActivityAttributes,
       ),
       alert: alert,
     );
+    _instance = _instance.copyWith(contentState: stateMap);
   }
 
   /// Ends this activity with an optional [finalContent] and [dismissalPolicy].
@@ -139,6 +141,10 @@ class ActivitySession<A extends ActivityAttributes,
       activityId: id,
       finalContent: finalContent,
       dismissalPolicy: dismissalPolicy,
+    );
+    _instance = _instance.copyWith(
+      state: ActivityState.ended,
+      contentState: finalContent?.state.toMap(),
     );
   }
 
@@ -175,6 +181,10 @@ class ActivitySession<A extends ActivityAttributes,
       finalContent: finalContent,
       dismissalPolicy: dismissalPolicy,
     );
+    _instance = _instance.copyWith(
+      state: ActivityState.ended,
+      contentState: finalContent?.state.toMap(),
+    );
   }
 
   /// Stream of APNs push tokens generated for this specific activity.
@@ -182,14 +192,7 @@ class ActivitySession<A extends ActivityAttributes,
     return FlutterActivityKitPlatform.instance.pushTokenUpdates
         .where((event) => event.activityId == id)
         .map((event) {
-      _instance = ActivityInstance(
-        id: _instance.id,
-        activityType: _instance.activityType,
-        state: _instance.state,
-        attributes: _instance.attributes,
-        contentState: _instance.contentState,
-        pushToken: event.pushToken,
-      );
+      _instance = _instance.copyWith(pushToken: event.pushToken);
       return event.pushToken;
     });
   }
@@ -199,14 +202,7 @@ class ActivitySession<A extends ActivityAttributes,
     return FlutterActivityKitPlatform.instance.activityStateUpdates
         .where((event) => event.activityId == id)
         .map((event) {
-      _instance = ActivityInstance(
-        id: _instance.id,
-        activityType: _instance.activityType,
-        state: event.state,
-        attributes: _instance.attributes,
-        contentState: _instance.contentState,
-        pushToken: _instance.pushToken,
-      );
+      _instance = _instance.copyWith(state: event.state);
       return event;
     });
   }

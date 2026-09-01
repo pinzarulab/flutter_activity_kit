@@ -45,7 +45,7 @@ class AndroidOptions {
   /// Notification category (e.g. 'status', 'progress', 'navigation', 'service').
   final String category;
 
-  /// Priority of the notification (default: 1 / high).
+  /// Priority: `0` low, `1` default, `2` high.
   final int priority;
 
   /// Interactive action buttons displayed in the notification.
@@ -111,8 +111,7 @@ class AndroidOptions {
   /// Creates options from a serialized map.
   factory AndroidOptions.fromMap(Map<String, dynamic> map) {
     return AndroidOptions(
-      channelId:
-          map['channelId'] as String? ?? 'flutter_activity_kit_channel',
+      channelId: map['channelId'] as String? ?? 'flutter_activity_kit_channel',
       channelName: map['channelName'] as String? ?? 'Live Activities',
       channelDescription: map['channelDescription'] as String?,
       smallIcon: map['smallIcon'] as String?,
@@ -134,6 +133,11 @@ class AndroidOptions {
               .toList() ??
           const [],
       ongoing: map['ongoing'] as bool? ?? true,
+      timer: map['timer'] == null
+          ? null
+          : ActivityTimer.fromMap(
+              Map<String, dynamic>.from(map['timer'] as Map),
+            ),
       sound: map['sound'] as String?,
     );
   }

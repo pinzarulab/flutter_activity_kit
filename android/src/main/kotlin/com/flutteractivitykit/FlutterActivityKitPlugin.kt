@@ -20,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import android.content.Intent
+import org.json.JSONObject
 
 /** FlutterActivityKitPlugin */
 class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener, PluginRegistry.NewIntentListener {
@@ -41,15 +42,32 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         private var pushTokenSink: EventChannel.EventSink? = null
         private var stateUpdateSink: EventChannel.EventSink? = null
         private var actionEventSink: EventChannel.EventSink? = null
+        private var applicationContext: Context? = null
+        private val pendingActionEvents = mutableListOf<Map<String, Any?>>()
+        private val pendingStateEvents = mutableListOf<Map<String, Any?>>()
 
-        fun sendActionEvent(activityId: String, actionId: String, payload: Map<String, Any?>? = null) {
+        fun sendActionEvent(
+            activityId: String,
+            actionId: String,
+            payload: Map<String, Any?>? = null,
+            sourceContext: Context? = applicationContext
+        ) {
             mainHandler.post {
                 val data = mapOf(
                     "activityId" to activityId,
                     "actionId" to actionId,
                     "payload" to payload
                 )
-                actionEventSink?.success(data)
+                val sink = actionEventSink
+                if (sink == null) {
+                    if (sourceContext != null) {
+                        PendingActionStore.add(sourceContext, activityId, actionId, payload)
+                    } else {
+                        pendingActionEvents.add(data)
+                    }
+                } else {
+                    sink.success(data)
+                }
             }
         }
 
@@ -60,7 +78,8 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
                     "state" to state,
                     "dismissalDate" to dismissalDate
                 )
-                stateUpdateSink?.success(data)
+                val sink = stateUpdateSink
+                if (sink == null) pendingStateEvents.add(data) else sink.success(data)
             }
         }
 
@@ -77,6 +96,7 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
+        applicationContext = flutterPluginBinding.applicationContext
         notificationManager = OngoingNotificationManager(flutterPluginBinding.applicationContext)
 
         methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "flutter_activity_kit/methods")
@@ -97,6 +117,10 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         stateUpdatesChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 stateUpdateSink = events
+                if (events != null) {
+                    pendingStateEvents.forEach(events::success)
+                    pendingStateEvents.clear()
+                }
             }
 
             override fun onCancel(arguments: Any?) {
@@ -108,6 +132,11 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         actionEventsChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 actionEventSink = events
+                if (events != null) {
+                    context?.let { PendingActionStore.drain(it).forEach(events::success) }
+                    pendingActionEvents.forEach(events::success)
+                    pendingActionEvents.clear()
+                }
             }
 
             override fun onCancel(arguments: Any?) {
@@ -171,6 +200,8 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
                 try {
                     manager.updateActivity(activityId, contentMap, alertMap)
                     result.success(null)
+                } catch (e: ActivityNotFoundException) {
+                    result.error("ACTIVITY_NOT_FOUND", e.message, null)
                 } catch (e: Exception) {
                     result.error("UPDATE_ACTIVITY_FAILED", e.message, null)
                 }
@@ -193,6 +224,8 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
                 try {
                     manager.endActivity(activityId, finalContentMap, dismissalPolicyMap)
                     result.success(null)
+                } catch (e: ActivityNotFoundException) {
+                    result.error("ACTIVITY_NOT_FOUND", e.message, null)
                 } catch (e: Exception) {
                     result.error("END_ACTIVITY_FAILED", e.message, null)
                 }
@@ -270,8 +303,14 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         val activityId = intent.getStringExtra("activityId")
         val actionId = intent.getStringExtra("actionId")
         if (activityId != null && actionId != null) {
-            sendActionEvent(activityId, actionId)
+            val payload = intent.getStringExtra("payloadJson")?.let(::jsonToMap)
+            sendActionEvent(activityId, actionId, payload)
         }
+    }
+
+    private fun jsonToMap(encoded: String): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
+        return jsonValueToDart(JSONObject(encoded)) as Map<String, Any?>
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -309,6 +348,10 @@ class FlutterActivityKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware
         pushTokensChannel.setStreamHandler(null)
         stateUpdatesChannel.setStreamHandler(null)
         actionEventsChannel.setStreamHandler(null)
+        pushTokenSink = null
+        stateUpdateSink = null
+        actionEventSink = null
+        applicationContext = null
         context = null
         notificationManager = null
     }

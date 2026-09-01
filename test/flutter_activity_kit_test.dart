@@ -8,9 +8,11 @@ void main() {
   const MethodChannel methodChannel =
       MethodChannel('flutter_activity_kit/methods');
   final List<MethodCall> log = <MethodCall>[];
+  bool failUpdates = false;
 
   setUp(() {
     log.clear();
+    failUpdates = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(methodChannel, (MethodCall methodCall) async {
       log.add(methodCall);
@@ -33,6 +35,12 @@ void main() {
             'pushToken': 'push_token_abc_123',
           };
         case 'updateActivity':
+          if (failUpdates) {
+            throw PlatformException(
+              code: 'UPDATE_FAILED',
+              message: 'Synthetic update failure',
+            );
+          }
           return null;
         case 'endActivity':
           return null;
@@ -109,7 +117,8 @@ void main() {
     // Update
     await session.update(
       const ActivityContent(
-        state: MapActivityContentState({'status': 'On the way', 'progress': 0.7}),
+        state:
+            MapActivityContentState({'status': 'On the way', 'progress': 0.7}),
       ),
     );
 
@@ -150,7 +159,8 @@ void main() {
       expect(session.id, 'test-activity-id-123');
       expect(session.state, ActivityState.active);
 
-      final startCall = log.firstWhere((call) => call.method == 'startActivity');
+      final startCall =
+          log.firstWhere((call) => call.method == 'startActivity');
       final args = startCall.arguments as Map<dynamic, dynamic>;
       expect(args['activityType'], 'Delivery');
       final content = args['content'] as Map<dynamic, dynamic>;
@@ -166,12 +176,16 @@ void main() {
         progress: 0.85,
       );
 
-      final updateCall = log.firstWhere((call) => call.method == 'updateActivity');
+      await session.quickUpdate(message: 'Almost there');
+
+      final updateCall =
+          log.lastWhere((call) => call.method == 'updateActivity');
       final updateArgs = updateCall.arguments as Map<dynamic, dynamic>;
       final updateContent = updateArgs['content'] as Map<dynamic, dynamic>;
       final updateState = updateContent['state'] as Map<dynamic, dynamic>;
       expect(updateState['status'], 'On the Way 🛵');
       expect(updateState['progress'], 0.85);
+      expect(updateState['message'], 'Almost there');
 
       // quickEnd
       await session.quickEnd(
@@ -179,6 +193,20 @@ void main() {
       );
 
       expect(log.any((call) => call.method == 'endActivity'), isTrue);
+      expect(session.state, ActivityState.ended);
+    });
+
+    test('quick start requests an iOS push token', () async {
+      await FlutterActivityKit.start(
+        title: 'Push enabled',
+        iosPushType: 'token',
+      );
+
+      final startCall =
+          log.firstWhere((call) => call.method == 'startActivity');
+      final args = startCall.arguments as Map<dynamic, dynamic>;
+      final iosOptions = args['iosOptions'] as Map<dynamic, dynamic>;
+      expect(iosOptions['pushType'], 'token');
     });
   });
 
@@ -216,6 +244,23 @@ void main() {
       });
 
       expect(controller.isActive, isFalse);
+      controller.dispose();
+    });
+
+    test('syncImmediately exposes errors and records last error', () async {
+      final controller = ActivityController<Map<String, dynamic>>(
+        initialState: {'status': 'Preparing'},
+        syncDebounce: Duration.zero,
+      );
+      await controller.start();
+      failUpdates = true;
+
+      await expectLater(
+        controller.syncImmediately(),
+        throwsA(isA<PlatformException>()),
+      );
+      expect(controller.lastSyncError, isA<PlatformException>());
+
       controller.dispose();
     });
   });

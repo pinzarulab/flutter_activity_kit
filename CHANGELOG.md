@@ -1,12 +1,31 @@
 # Changelog
 
+## 0.5.0
+
+- Fixed `ActivitySession` snapshots so sequential quick updates preserve prior state and ended sessions report `ended`.
+- Added explicit Android action behavior (`background`, `opensApp`, and `deepLink`) plus action payloads.
+- Added cold-start action buffering and reliable foreground iOS deep-link routing.
+- Removed broken cross-process iOS `NotificationCenter` AppIntent bridge; documented native background-action boundary.
+- Persisted Android activity metadata and notification IDs across process restarts.
+- Added Android not-found errors, lifecycle events, delayed dismissal, alert sounds, large icons, categories, visibility timestamps, and priority handling.
+- Stopped swallowing Android notification permission failures.
+- Added `iosPushType` to quick start for APNs push-to-update token requests.
+- Added controller sync error reporting and synchronization/end ordering.
+- Fixed Swift generator to emit plugin-compatible `FlutterActivityAttributes`.
+- Added CI verification for analysis, tests, Android build, iOS build, and publish validation.
+- Corrected package docs and CocoaPods metadata.
+- Fixed duplicate iOS action delivery caused by routing the same URL through
+  `SceneDelegate`, `AppDelegate`, and the plugin.
+- Fixed workout taps incorrectly opening match statistics and routed Call Driver
+  through the app before launching the phone dialer.
+
 ## 0.4.1
 
 - **Documentation Overhaul & Developer Guide**:
   - Comprehensive documentation covering the Fluent Quick-Start API, reactive `ActivityController<T>`, and `ActivityActionListener`.
   - Added full guide for backend integration with WebSockets, Firebase Cloud Firestore, Apple APNs HTTP/2 Live Activity Pushes, and FCM background handlers.
-  - Added detailed native setup instructions for Swift Package Manager (SPM), iOS 17 AppIntents, and Android 13+ Notification permissions.
-  - Added hardware chronometer and 60 FPS zero-battery countdown guides.
+  - Added setup instructions for Swift Package Manager (SPM), iOS actions, and Android 13+ notification permissions.
+  - Added native chronometer and countdown guides.
 - **Smart Concurrency Debouncing in `ActivityController`**:
   - Built-in `syncDebounce` (150ms) and in-flight concurrency queue to eliminate platform channel throttling and latency during rapid UI state mutations.
 
@@ -39,19 +58,19 @@
   - `FlutterActivityKit.onPushToken()` helper for easy backend token synchronization.
 - **Native Hardware Countdowns & Chronometers (`ActivityTimer`)**:
   - Hardware-rendered real-time countdown timers and elapsed stopwatches.
-  - Rendered at 60 FPS natively in Apple's SystemUI on the Dynamic Island and Lock Screen using SwiftUI's `Text(timerInterval:pauseTime:countsDown:)` with zero CPU wakeups, zero battery drain, and zero background bridge calls.
+  - Rendered by SwiftUI on Dynamic Island and Lock Screen using `Text(timerInterval:pauseTime:countsDown:)` without a Dart polling loop.
   - Rendered in Android Ongoing Notifications via SystemUI `setUsesChronometer` and `setChronometerCountDown`.
   - Added `ActivityTimer.countdown()` and `ActivityTimer.chronometer()` factory constructors.
 - **Deep Linking & Foreground Intent Launching**:
-  - Added `FlutterActivityOpenAppIntent` for direct foreground app opening from Dynamic Island / Lock Screen buttons.
+  - Added foreground app-opening actions from Dynamic Island / Lock Screen buttons.
   - Native Phone dialer launcher (`Link(destination: "tel://...")`).
   - `SceneDelegate` / `AppDelegate` URL context bridge.
   - Android `PendingIntent.getActivity` with `FLAG_ACTIVITY_SINGLE_TOP` for seamless foreground navigation.
 
 ## 0.2.0
 
-- **Interactive iOS 17+ AppIntents**:
-  - Direct background interactive button execution from Dynamic Island and Lock Screen via `FlutterActivityActionIntent` without opening the app.
+- **Interactive iOS actions**:
+  - Added initial action-routing support; replaced in 0.5.0 because extension-local notifications cannot reach Dart across processes.
   - Fixed platform channel threading to guarantee all action events dispatch on the platform main thread.
 - **Android Runtime Permission (`POST_NOTIFICATIONS`)**:
   - Added native `FlutterActivityKit.requestPermissions()` with automated `ActivityAware` runtime permission handling on Android 13+ (API 33+).

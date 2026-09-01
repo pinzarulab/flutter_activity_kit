@@ -35,12 +35,10 @@ class ActivityDashboardScreen extends StatefulWidget {
   const ActivityDashboardScreen({super.key});
 
   @override
-  State<ActivityDashboardScreen> createState() =>
-      _ActivityDashboardScreenState();
+  State<ActivityDashboardScreen> createState() => _ActivityDashboardScreenState();
 }
 
-class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
-    with SingleTickerProviderStateMixin {
+class _ActivityDashboardScreenState extends State<ActivityDashboardScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   bool _isSupported = false;
@@ -48,10 +46,8 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   String? _pushToStartToken;
 
   // Active Sessions
-  ActivitySession<MapActivityAttributes, MapActivityContentState>?
-      _deliverySession;
-  ActivitySession<MapActivityAttributes, MapActivityContentState>?
-      _sportsSession;
+  ActivitySession<MapActivityAttributes, MapActivityContentState>? _deliverySession;
+  ActivitySession<MapActivityAttributes, MapActivityContentState>? _sportsSession;
 
   // Reactive Controller Demo
   late final ActivityController<Map<String, dynamic>> _workoutController;
@@ -177,6 +173,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
 
   final List<String> _eventLogs = [];
   final List<void Function()> _cancelListeners = [];
+  bool _isShowingMatchStats = false;
 
   @override
   void initState() {
@@ -240,16 +237,22 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
         _logEvent('Action Callback: Calling Driver via Native Phone App');
         final uri = Uri.parse('tel:+15550199');
         if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          _logEvent('Phone dialer unavailable on this device');
         }
       }),
     );
 
     _cancelListeners.add(
       FlutterActivityKit.onAction('match_stats', (event) {
+        if (_sportsSession?.id != event.activityId) {
+          _logEvent('Ignored match_stats for non-match activity');
+          return;
+        }
         _logEvent('Action Callback: Opening Match Stats Screen');
         _tabController.animateTo(1);
-        _showMatchStats();
+        unawaited(_showMatchStats());
       }),
     );
 
@@ -276,79 +279,85 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     );
   }
 
-  void _showMatchStats() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.65,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return SingleChildScrollView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(3),
+  Future<void> _showMatchStats() async {
+    if (_isShowingMatchStats || !mounted) return;
+    _isShowingMatchStats = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFF1C1C1E),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.65,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (context, scrollController) {
+              return SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Center(
-                    child: Text(
-                      'Live Match Statistics',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    const SizedBox(height: 16),
+                    const Center(
+                      child: Text(
+                        'Live Match Statistics',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Center(
-                    child: Text(
-                      'Real Madrid $_homeScore - $_awayScore Barcelona ($_matchMinute\')',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.greenAccent,
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        'Real Madrid $_homeScore - $_awayScore Barcelona ($_matchMinute\')',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.greenAccent,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildStatRow('Possession', '54%', '46%'),
-                  _buildStatRow('Expected Goals (xG)', '2.41', '1.87'),
-                  _buildStatRow('Total Shots', '14', '11'),
-                  _buildStatRow('Shots on Target', '7', '5'),
-                  _buildStatRow('Corner Kicks', '6', '4'),
-                  _buildStatRow('Fouls', '8', '12'),
-                  _buildStatRow('Yellow Cards', '1', '2'),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close Statistics'),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+                    const SizedBox(height: 24),
+                    _buildStatRow('Possession', '54%', '46%'),
+                    _buildStatRow('Expected Goals (xG)', '2.41', '1.87'),
+                    _buildStatRow('Total Shots', '14', '11'),
+                    _buildStatRow('Shots on Target', '7', '5'),
+                    _buildStatRow('Corner Kicks', '6', '4'),
+                    _buildStatRow('Fouls', '8', '12'),
+                    _buildStatRow('Yellow Cards', '1', '2'),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close Statistics'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      _isShowingMatchStats = false;
+    }
   }
 
   Widget _buildStatRow(String title, String homeVal, String awayVal) {
@@ -658,7 +667,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
             children: [
               Icon(Icons.flash_on_rounded, color: Colors.amber),
               SizedBox(width: 8),
-              Text('Flutter ActivityKit v0.4.0'),
+              Text('Flutter ActivityKit v0.5.0'),
             ],
           ),
           bottom: TabBar(
@@ -708,9 +717,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
           Expanded(
             child: Text(
               _isSupported
-                  ? (_areActivitiesEnabled
-                      ? 'Live Activities & Notifications Active'
-                      : 'Permission Needed')
+                  ? (_areActivitiesEnabled ? 'Live Activities & Notifications Active' : 'Permission Needed')
                   : 'Live Activities Not Supported on this OS',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
@@ -756,18 +763,20 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isRunning ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          isRunning ? 'RUNNING (60 FPS)' : 'STOPPED',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isRunning ? Colors.green : Colors.grey,
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isRunning ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isRunning ? 'RUNNING (OS-RENDERED)' : 'STOPPED',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isRunning ? Colors.green : Colors.grey,
+                            ),
                           ),
                         ),
                       ),
@@ -903,7 +912,8 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                           const Icon(Icons.shield_rounded, size: 36, color: Colors.blue),
                           const SizedBox(height: 4),
                           const Text('Real Madrid', style: TextStyle(fontWeight: FontWeight.bold)),
-                          Text('$_homeScore', style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('$_homeScore',
+                              style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
                         ],
                       ),
                       Column(
@@ -921,7 +931,8 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                           const Icon(Icons.shield_rounded, size: 36, color: Colors.red),
                           const SizedBox(height: 4),
                           const Text('Barcelona', style: TextStyle(fontWeight: FontWeight.bold)),
-                          Text('$_awayScore', style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('$_awayScore',
+                              style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
@@ -1085,7 +1096,8 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isActive ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                              color:
+                                  isActive ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -1112,9 +1124,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                   ),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               Card(
                 elevation: 2,
                 child: Padding(

@@ -1,6 +1,6 @@
 /// iOS-specific configuration options for Live Activities.
 class IOSOptions {
-  /// The Swift ActivityAttributes struct name if using multiple custom attributes.
+  /// Logical type label stored inside generic `FlutterActivityAttributes`.
   final String? activityType;
 
   /// The date at which the activity's content becomes stale.

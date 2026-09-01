@@ -1,8 +1,28 @@
-/// Represents an interactive action button on an iOS Live Activity or Android Ongoing Notification.
+/// Controls how an Android notification action is delivered.
+enum ActivityActionBehavior {
+  /// Deliver through a broadcast without opening the application UI.
+  background,
+
+  /// Open the application and deliver the action to Dart.
+  opensApp,
+
+  /// Open [ActivityAction.uri] through the platform intent resolver.
+  deepLink;
+
+  String get value => name;
+
+  static ActivityActionBehavior fromString(String? value) {
+    return ActivityActionBehavior.values.firstWhere(
+      (behavior) => behavior.value == value,
+      orElse: () => ActivityActionBehavior.opensApp,
+    );
+  }
+}
+
+/// Represents an interactive action button on an Android Ongoing Notification.
 ///
-/// On iOS 17+, action buttons trigger AppIntents in the background without opening the app,
-/// or launch the application via deep link intents.
-/// On Android, action buttons dispatch directly to the foreground activity or broadcast receiver.
+/// iOS Live Activity UI belongs to the app's Widget Extension. Define iOS
+/// buttons there and route foreground actions through deep links.
 ///
 /// Example:
 /// ```dart
@@ -23,12 +43,22 @@ class ActivityAction {
   /// Optional icon name (Android drawable resource or iOS SF Symbol).
   final String? icon;
 
-  /// Whether this action represents a destructive operation (e.g. Cancel order).
-  /// Rendered in red on supported platforms.
+  /// Semantic marker retained in serialization. Android SystemUI does not
+  /// expose destructive notification-button styling.
   final bool isDestructive;
 
-  /// Whether tapping this action requires unlocking the device first.
+  /// Whether tapping this action requires app-mediated authentication.
+  /// Android forces such actions to [ActivityActionBehavior.opensApp].
   final bool authenticationRequired;
+
+  /// How Android delivers this action.
+  final ActivityActionBehavior behavior;
+
+  /// URI opened when [behavior] is [ActivityActionBehavior.deepLink].
+  final String? uri;
+
+  /// Optional JSON-compatible data delivered with the action event.
+  final Map<String, dynamic>? payload;
 
   const ActivityAction({
     required this.id,
@@ -36,6 +66,9 @@ class ActivityAction {
     this.icon,
     this.isDestructive = false,
     this.authenticationRequired = false,
+    this.behavior = ActivityActionBehavior.opensApp,
+    this.uri,
+    this.payload,
   });
 
   /// Converts this action configuration into a serializable map.
@@ -46,6 +79,9 @@ class ActivityAction {
       if (icon != null) 'icon': icon,
       'isDestructive': isDestructive,
       'authenticationRequired': authenticationRequired,
+      'behavior': behavior.value,
+      if (uri != null) 'uri': uri,
+      if (payload != null) 'payload': payload,
     };
   }
 
@@ -57,6 +93,11 @@ class ActivityAction {
       icon: map['icon'] as String?,
       isDestructive: map['isDestructive'] as bool? ?? false,
       authenticationRequired: map['authenticationRequired'] as bool? ?? false,
+      behavior: ActivityActionBehavior.fromString(map['behavior'] as String?),
+      uri: map['uri'] as String?,
+      payload: map['payload'] == null
+          ? null
+          : Map<String, dynamic>.from(map['payload'] as Map),
     );
   }
 }
