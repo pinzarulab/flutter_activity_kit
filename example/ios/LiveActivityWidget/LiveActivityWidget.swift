@@ -1,1 +1,1 @@
-// Intentionally empty. This extension contains only LiveActivityWidgetLiveActivity.
+// Intentionally empty. All Live Activity implementations are in LiveActivityWidgetLiveActivity.swift.

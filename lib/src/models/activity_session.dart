@@ -80,6 +80,7 @@ class ActivitySession<A extends ActivityAttributes,
   /// - [status]: Short badge or state text.
   /// - [progress]: Progress indicator value between 0.0 and 1.0.
   /// - [timer]: Updated OS-rendered [ActivityTimer].
+  /// - [clearTimer]: Removes the current timer. Cannot be combined with a new timer.
   /// - [countdown]: Shorthand [Duration] to set a countdown clock.
   /// - [chronometer]: Shorthand to start an elapsed chronometer.
   /// - [data]: Additional custom key-value pairs stored in state.
@@ -92,6 +93,7 @@ class ActivitySession<A extends ActivityAttributes,
     String? status,
     double? progress,
     ActivityTimer? timer,
+    bool clearTimer = false,
     Duration? countdown,
     Duration? chronometer,
     Map<String, dynamic>? data,
@@ -99,6 +101,13 @@ class ActivitySession<A extends ActivityAttributes,
     DateTime? staleDate,
     double? relevanceScore,
   }) async {
+    if (clearTimer &&
+        (timer != null || countdown != null || chronometer != null)) {
+      throw ArgumentError(
+        'clearTimer cannot be combined with timer, countdown, or chronometer',
+      );
+    }
+
     final stateMap = Map<String, dynamic>.from(_instance.contentState);
     if (title != null) stateMap['title'] = title;
     if (message != null) stateMap['message'] = message;
@@ -114,7 +123,9 @@ class ActivitySession<A extends ActivityAttributes,
         resolvedTimer = ActivityTimer.chronometer();
       }
     }
-    if (resolvedTimer != null) {
+    if (clearTimer) {
+      stateMap.remove('timer');
+    } else if (resolvedTimer != null) {
       stateMap['timer'] = resolvedTimer.toMap();
     }
 
@@ -123,6 +134,7 @@ class ActivitySession<A extends ActivityAttributes,
       content: ActivityContent(
         state: MapActivityContentState(stateMap),
         timer: resolvedTimer,
+        clearTimer: clearTimer,
         staleDate: staleDate,
         relevanceScore: relevanceScore,
       ),

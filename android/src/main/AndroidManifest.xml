@@ -13,5 +13,8 @@
                 <action android:name="com.flutteractivitykit.ACTION_CLICK" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".TimerExpirationReceiver"
+            android:exported="false" />
     </application>
 </manifest>

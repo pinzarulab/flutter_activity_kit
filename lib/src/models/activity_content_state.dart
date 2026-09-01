@@ -55,12 +55,18 @@ class ActivityContent<T extends ActivityContentState> {
   /// Optional hardware-rendered real-time countdown timer or chronometer.
   final ActivityTimer? timer;
 
+  /// Whether an existing timer should be removed from the activity.
+  ///
+  /// Use this when updating content without replacing the current timer.
+  final bool clearTimer;
+
   const ActivityContent({
     required this.state,
     this.staleDate,
     this.relevanceScore,
     this.alert,
     this.timer,
+    this.clearTimer = false,
   });
 
   /// Converts this content wrapper to a serializable map.
@@ -71,6 +77,7 @@ class ActivityContent<T extends ActivityContentState> {
       if (relevanceScore != null) 'relevanceScore': relevanceScore,
       if (alert != null) 'alert': alert!.toMap(),
       if (timer != null) 'timer': timer!.toMap(),
+      if (clearTimer) 'clearTimer': true,
     };
   }
 }

@@ -164,6 +164,16 @@ void main() {
       expect(map['relevanceScore'], 50.0);
       expect(map['alert']?['title'], 'Updated');
     });
+
+    test('ActivityContent serializes an explicit timer removal', () {
+      const content = ActivityContent(
+        state: MapActivityContentState({'status': 'Arrived'}),
+        clearTimer: true,
+      );
+
+      expect(content.toMap()['clearTimer'], isTrue);
+      expect(content.toMap().containsKey('timer'), isFalse);
+    });
   });
 
   group('ActivityInstance and Events', () {

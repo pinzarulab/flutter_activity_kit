@@ -180,11 +180,19 @@ await session.quickUpdate(
   message: 'Driver is three minutes away',
 );
 
+// Remove the current countdown when the delivery arrives.
+await session.quickUpdate(status: 'Arrived', clearTimer: true);
+
 await session.quickEnd(
   status: 'Delivered',
   dismissalPolicy: ActivityDismissalPolicy.immediate,
 );
 ```
+
+Android countdowns automatically stop at zero and restore normal notification
+content. On iOS, timer rendering updates without Dart polling, but automatic
+business-state transitions while the app is suspended require an ActivityKit
+APNs update. Use `clearTimer: true` with local updates.
 
 Android action behavior:
 

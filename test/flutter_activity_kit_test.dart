@@ -187,6 +187,16 @@ void main() {
       expect(updateState['progress'], 0.85);
       expect(updateState['message'], 'Almost there');
 
+      await session.quickUpdate(status: 'Arrived', clearTimer: true);
+      final clearCall = log.lastWhere(
+        (call) => call.method == 'updateActivity',
+      );
+      final clearArgs = clearCall.arguments as Map<dynamic, dynamic>;
+      final clearContent = clearArgs['content'] as Map<dynamic, dynamic>;
+      final clearState = clearContent['state'] as Map<dynamic, dynamic>;
+      expect(clearContent['clearTimer'], isTrue);
+      expect(clearState.containsKey('timer'), isFalse);
+
       // quickEnd
       await session.quickEnd(
         status: 'Delivered 🎉',
@@ -194,6 +204,21 @@ void main() {
 
       expect(log.any((call) => call.method == 'endActivity'), isTrue);
       expect(session.state, ActivityState.ended);
+    });
+
+    test('quickUpdate rejects clearing and replacing a timer together',
+        () async {
+      final session = await FlutterActivityKit.start(
+        countdown: const Duration(minutes: 5),
+      );
+
+      expect(
+        () => session.quickUpdate(
+          clearTimer: true,
+          countdown: const Duration(minutes: 1),
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('quick start requests an iOS push token', () async {

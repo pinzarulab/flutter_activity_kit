@@ -101,17 +101,11 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         case "getPushToStartToken":
             if #available(iOS 17.2, *) {
                 #if canImport(ActivityKit)
-                Task {
-                    for await tokenData in Activity<FlutterActivityAttributes>.pushToStartTokenUpdates {
-                        let token = tokenData.map { String(format: "%02.2hhx", $0) }.joined()
-                        DispatchQueue.main.async {
-                            result(token)
-                        }
-                        return
-                    }
-                    DispatchQueue.main.async {
-                        result(nil)
-                    }
+                if let tokenData = Activity<FlutterActivityAttributes>.pushToStartToken {
+                    let token = tokenData.map { String(format: "%02.2hhx", $0) }.joined()
+                    result(token)
+                } else {
+                    result(nil)
                 }
                 #else
                 result(nil)

@@ -1,5 +1,6 @@
 package com.flutteractivitykit
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -37,6 +38,7 @@ class OngoingNotificationManager(private val context: Context) {
 
     init {
         restoreActivities()
+        trackedActivities.values.forEach(::scheduleCountdownExpiration)
     }
 
     fun areActivitiesEnabled(): Boolean = notificationManager.areNotificationsEnabled()
@@ -102,7 +104,9 @@ class OngoingNotificationManager(private val context: Context) {
         @Suppress("UNCHECKED_CAST")
         val content = args["content"] as? Map<String, Any?> ?: emptyMap()
         @Suppress("UNCHECKED_CAST")
-        val state = content["state"] as? Map<String, Any?> ?: emptyMap()
+        val state = (content["state"] as? Map<String, Any?> ?: emptyMap()).toMutableMap()
+        @Suppress("UNCHECKED_CAST")
+        (content["timer"] as? Map<String, Any?>)?.let { state["timer"] = it }
         @Suppress("UNCHECKED_CAST")
         val options = args["androidOptions"] as? Map<String, Any?> ?: emptyMap()
 
@@ -132,6 +136,7 @@ class OngoingNotificationManager(private val context: Context) {
         )
         trackedActivities[activityId] = tracked
         persistActivities()
+        scheduleCountdownExpiration(tracked)
         FlutterActivityKitPlugin.sendStateUpdate(activityId, "active")
         return tracked.toMap()
     }
@@ -143,7 +148,16 @@ class OngoingNotificationManager(private val context: Context) {
     ) {
         val tracked = trackedActivities[activityId] ?: throw ActivityNotFoundException(activityId)
         @Suppress("UNCHECKED_CAST")
-        val state = contentMap["state"] as? Map<String, Any?> ?: emptyMap()
+        val state = (contentMap["state"] as? Map<String, Any?> ?: emptyMap()).toMutableMap()
+        @Suppress("UNCHECKED_CAST")
+        (contentMap["timer"] as? Map<String, Any?>)?.let { state["timer"] = it }
+        if (contentMap["clearTimer"] == true) {
+            state.remove("timer")
+            tracked.androidOptions = tracked.androidOptions.toMutableMap().apply {
+                remove("timer")
+                put("isChronometer", false)
+            }
+        }
         @Suppress("UNCHECKED_CAST")
         buildAndPostNotification(
             activityId,
@@ -154,6 +168,7 @@ class OngoingNotificationManager(private val context: Context) {
         )
         tracked.contentState = state
         persistActivities()
+        scheduleCountdownExpiration(tracked)
     }
 
     fun endActivity(
@@ -162,6 +177,7 @@ class OngoingNotificationManager(private val context: Context) {
         dismissalPolicyMap: Map<String, Any?>?
     ) {
         val tracked = trackedActivities[activityId] ?: throw ActivityNotFoundException(activityId)
+        cancelCountdownExpiration(tracked)
         val policy = dismissalPolicyMap?.get("type") as? String ?: "default"
         if (policy == "immediate" || finalContentMap == null) {
             notificationManager.cancel(tracked.notificationId)
@@ -195,6 +211,26 @@ class OngoingNotificationManager(private val context: Context) {
         trackedActivities.values.map { it.toMap() }
 
     fun getActivity(activityId: String): Map<String, Any?>? = trackedActivities[activityId]?.toMap()
+
+    fun completeCountdown(activityId: String) {
+        val tracked = trackedActivities[activityId] ?: return
+        val state = tracked.contentState.toMutableMap().apply {
+            remove("timer")
+            put("timerFinished", true)
+        }
+        tracked.contentState = state
+        tracked.androidOptions = tracked.androidOptions.toMutableMap().apply {
+            remove("timer")
+            put("isChronometer", false)
+        }
+        buildAndPostNotification(
+            tracked.id,
+            tracked.notificationId,
+            tracked.contentState,
+            tracked.androidOptions
+        )
+        persistActivities()
+    }
 
     private fun TrackedActivity.toMap(): Map<String, Any?> = mapOf(
         "id" to id,
@@ -292,10 +328,18 @@ class OngoingNotificationManager(private val context: Context) {
             val countsDown = timer["countsDown"] as? Boolean ?: true
             val target = (timer["targetDate"] as? Number)?.toLong()
             val start = (timer["startDate"] as? Number)?.toLong() ?: System.currentTimeMillis()
-            builder.setUsesChronometer(true)
-            builder.setWhen(if (countsDown && target != null) target else start)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                builder.setChronometerCountDown(countsDown)
+            val remaining = target?.minus(System.currentTimeMillis())
+            if (!countsDown || remaining == null || remaining > 0L) {
+                builder.setUsesChronometer(true)
+                builder.setWhen(if (countsDown && target != null) target else start)
+                if (countsDown && remaining != null) {
+                    // Prevent SystemUI from displaying negative time if an inexact
+                    // expiration alarm is delayed by battery optimizations.
+                    builder.setTimeoutAfter(remaining)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(countsDown)
+                }
             }
         } else if (androidOptions["isChronometer"] as? Boolean ?: false) {
             builder.setUsesChronometer(true)
@@ -360,6 +404,55 @@ class OngoingNotificationManager(private val context: Context) {
         }
 
         notificationManager.notify(notificationId, builder.build())
+    }
+
+    private fun scheduleCountdownExpiration(activity: TrackedActivity) {
+        cancelCountdownExpiration(activity)
+        @Suppress("UNCHECKED_CAST")
+        val timer = activity.contentState["timer"] as? Map<String, Any?>
+            ?: activity.androidOptions["timer"] as? Map<String, Any?>
+            ?: return
+        if (timer["countsDown"] as? Boolean == false) return
+        val target = (timer["targetDate"] as? Number)?.toLong() ?: return
+        if (target <= System.currentTimeMillis()) {
+            completeCountdown(activity.id)
+            return
+        }
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            target,
+            countdownExpirationIntent(activity, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
+        )
+    }
+
+    private fun cancelCountdownExpiration(activity: TrackedActivity) {
+        val pendingIntent = countdownExpirationIntent(
+            activity,
+            PendingIntent.FLAG_NO_CREATE
+        ) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.cancel(pendingIntent)
+        pendingIntent.cancel()
+    }
+
+    private fun countdownExpirationIntent(
+        activity: TrackedActivity,
+        creationFlag: Int
+    ): PendingIntent? {
+        val immutableFlag =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        val intent = Intent(context, TimerExpirationReceiver::class.java).apply {
+            action = ACTION_TIMER_EXPIRED
+            putExtra("activityId", activity.id)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            activity.notificationId,
+            intent,
+            creationFlag or immutableFlag
+        )
     }
 
     private fun actionBroadcastIntent(
@@ -440,6 +533,7 @@ class OngoingNotificationManager(private val context: Context) {
 
     companion object {
         const val ACTION_CLICK = "com.flutteractivitykit.ACTION_CLICK"
+        const val ACTION_TIMER_EXPIRED = "com.flutteractivitykit.ACTION_TIMER_EXPIRED"
         private const val PREFERENCES_NAME = "flutter_activity_kit"
         private const val ACTIVITIES_KEY = "tracked_activities"
         private const val NEXT_NOTIFICATION_ID_KEY = "next_notification_id"

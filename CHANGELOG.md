@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Added explicit timer removal with `clearTimer`, including delivery arrival updates.
+- Stopped Android countdowns at zero using a persisted native expiration alarm.
+- Kept iOS timer capsules compact and right-aligned instead of filling the row.
+
 ## 0.5.0
 
 - Fixed `ActivitySession` snapshots so sequential quick updates preserve prior state and ended sessions report `ended`.
