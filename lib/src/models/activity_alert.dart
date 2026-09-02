@@ -1,6 +1,19 @@
+/// Haptic feedback styles triggered when a Live Activity milestone occurs.
+enum ActivityHapticFeedback {
+  none,
+  success,
+  warning,
+  error,
+  impactLight,
+  impactMedium,
+  impactHeavy,
+  selection,
+}
+
 /// Alert configuration displayed when an activity starts or updates.
 ///
-/// Triggers a banner alert and sound/haptic feedback on the Lock Screen or Apple Watch.
+/// Triggers a visual banner alert, Dynamic Island bounce animation, system sound,
+/// and haptic feedback on iOS and Android.
 ///
 /// Example:
 /// ```dart
@@ -8,6 +21,7 @@
 ///   title: '⚽ GOAL!',
 ///   body: 'Real Madrid scores in the 82nd minute!',
 ///   sound: 'default',
+///   haptic: ActivityHapticFeedback.success,
 /// )
 /// ```
 class ActivityAlert {
@@ -20,10 +34,14 @@ class ActivityAlert {
   /// Optional custom sound resource name (or `'default'` for standard system sound).
   final String? sound;
 
+  /// Optional haptic feedback triggered during this milestone update.
+  final ActivityHapticFeedback haptic;
+
   const ActivityAlert({
     required this.title,
     required this.body,
     this.sound,
+    this.haptic = ActivityHapticFeedback.none,
   });
 
   /// Converts this alert configuration into a serializable map.
@@ -32,6 +50,7 @@ class ActivityAlert {
       'title': title,
       'body': body,
       if (sound != null) 'sound': sound,
+      'haptic': haptic.name,
     };
   }
 
@@ -41,6 +60,23 @@ class ActivityAlert {
       title: map['title'] as String? ?? '',
       body: map['body'] as String? ?? '',
       sound: map['sound'] as String?,
+      haptic: ActivityHapticFeedback.values.firstWhere(
+        (e) => e.name == map['haptic'],
+        orElse: () => ActivityHapticFeedback.none,
+      ),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ActivityAlert &&
+        other.title == title &&
+        other.body == body &&
+        other.sound == sound &&
+        other.haptic == haptic;
+  }
+
+  @override
+  int get hashCode => Object.hash(title, body, sound, haptic);
 }

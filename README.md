@@ -1,6 +1,6 @@
 # flutter_activity_kit
 
-[![pub package](https://img.shields.io/badge/pub-v0.5.1-blue.svg)](https://pub.dev/packages/flutter_activity_kit)
+[![pub package](https://img.shields.io/badge/pub-v0.6.0-blue.svg)](https://pub.dev/packages/flutter_activity_kit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![iOS: 16.1+](https://img.shields.io/badge/iOS-16.1%2B-lightgrey.svg)](https://developer.apple.com/documentation/activitykit)
 [![Android: 7.0+](https://img.shields.io/badge/Android-7.0%2B-green.svg)](https://developer.android.com/develop/ui/views/notifications)
@@ -9,17 +9,22 @@ Unified Flutter API for iOS Live Activities (Dynamic Island & Lock Screen) and A
 
 ---
 
-## 🌟 What's New in v0.5.1
+## 🌟 What's New in v0.6.0
 
+- 🤖 **Android 16 Rich Ongoing Notifications**: Unlocks persistent **Status Bar Chips** (Android's official answer to Dynamic Island) with custom icons, text pills, and accent colors.
+- 🔊 **Dynamic Island Bounces & Haptic Alerts**: ActivityKit `AlertConfiguration` for native Dynamic Island pulse animations and sounds on milestones, with cross-platform native haptic feedback (`ActivityHapticFeedback`).
+- 🗺️ **Static Map & Route Snapshot Generator**: Built-in `MapSnapshotGenerator` for Google Maps and Mapbox dark-mode / satellite snapshot URLs with markers and route paths.
 - 🎨 **Pure Dart UI DSL**: Build custom Live Activity widgets in 100% Dart (`LAColumn`, `LARow`, `LAText`, `LAImage`, `LAProgressBar`, `LAButton`, `LASpacer`, `LAContainer`, `LATimer`) and transpile them to native SwiftUI.
 - 📁 **Smart Folder Scanning (`lib/live_activity_widgets/`)**: Put your Dart widget definitions in `lib/live_activity_widgets/` and run `dart run flutter_activity_kit:generate_swift` to generate all Swift widgets automatically.
-- 🧩 **Built-in Templates**: Pre-configured templates for `navigation` (Mini-Map route canvas), `delivery`, `sports` (live scoreboard), `workout` (chronometer & metrics), and `generic`.
-- 🗺️ **Mini-Map & Route Tracking**: Native vector route canvas for Dynamic Island and Lock Screen.
-- 📐 **Compact Lock Screen Banner**: Optimized padding and sizing to eliminate clipping within Apple's 160pt height constraint.
 
 ---
 
-## Features
+## Install
+
+```yaml
+dependencies:
+  flutter_activity_kit: ^0.6.0
+```
 
 - **iOS 16.1+ Live Activities**: Lock Screen banners, Dynamic Island (compact, expanded, minimal).
 - **Android Ongoing Notifications**: High priority status bar chips, progress bars, timers, and interactive action buttons.

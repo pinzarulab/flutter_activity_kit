@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.5.1
+## 0.6.0
+
+- **Android 16 Rich Ongoing Notifications (Status Bar Chips)**:
+  - Added `AndroidRichOngoingOptions` with `statusChipText`, `statusChipIcon`, `statusChipColor`, and `isProminentChip`.
+  - Unlocks persistent status bar chips (Android's official equivalent to Dynamic Island) with graceful fallback on Android 7.0–15.
+- **Dynamic Island Bounces & Haptic Milestone Alerts**:
+  - Added `ActivityHapticFeedback` enum (`none`, `success`, `warning`, `error`, `impactLight`, `impactMedium`, `impactHeavy`, `selection`).
+  - Added native iOS ActivityKit `AlertConfiguration(title:body:sound:)` for Dynamic Island pulse/bounce animations and system sounds.
+  - Added native vibration effects on Android.
+- **Static Map & Route Snapshot Generator**:
+  - Added `MapSnapshotGenerator`, `LatLng`, and `MapMarker` for generating Google Maps Static API and Mapbox dark-mode/satellite snapshot URLs with markers and route paths.
 
 - **Pure Dart UI DSL & Transpiler**:
   - Build 100% custom Live Activity widgets in pure Dart using `LAWidget`, `LAColumn`, `LARow`, `LAText`, `LAImage`, `LAProgressBar`, `LAButton`, `LASpacer`, `LAContainer`, and `LATimer`.

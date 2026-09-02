@@ -259,12 +259,24 @@ class OngoingNotificationManager(private val context: Context) {
             androidOptions["sound"] as? String
         )
 
-        val title = contentState["title"] as? String
-            ?: contentState["status"] as? String
-            ?: "Live Update"
-        val message = contentState["message"] as? String
+        val status = contentState["status"] as? String
+        val rawTitle = contentState["title"] as? String
+        val rawMessage = contentState["message"] as? String
             ?: contentState["body"] as? String
             ?: ""
+
+        val title = rawTitle ?: status ?: "Live Update"
+
+        val subText = (androidOptions["subText"] as? String)
+            ?: (contentState["subText"] as? String)
+            ?: status
+
+        val message = if (!status.isNullOrBlank() && !rawMessage.contains(status) && status != title) {
+            if (rawMessage.isNotBlank()) "$status • $rawMessage" else status
+        } else {
+            rawMessage
+        }
+
         val ongoing = androidOptions["ongoing"] as? Boolean ?: true
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(getIconResourceId(androidOptions["smallIcon"] as? String))
@@ -292,7 +304,14 @@ class OngoingNotificationManager(private val context: Context) {
             builder.setContentIntent(PendingIntent.getActivity(context, notificationId, launchIntent, flags))
         }
 
-        (androidOptions["subText"] as? String ?: contentState["subText"] as? String)?.let(builder::setSubText)
+        subText?.let(builder::setSubText)
+        if (message.isNotBlank()) {
+            val bigTextStyle = NotificationCompat.BigTextStyle().bigText(message)
+            if (subText != null) {
+                bigTextStyle.setSummaryText(subText)
+            }
+            builder.setStyle(bigTextStyle)
+        }
         (androidOptions["color"] as? Number)?.toInt()?.let(builder::setColor)
         (androidOptions["largeIcon"] as? String)?.let { name ->
             builder.setLargeIcon(

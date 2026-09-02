@@ -44,21 +44,24 @@ void main() {
   });
 
   group('ActivityAlert', () {
-    test('maps correctly', () {
+    test('maps correctly with haptic feedback', () {
       const alert = ActivityAlert(
         title: 'Order On The Way',
         body: 'Driver is 5 mins away',
         sound: 'alert.caf',
+        haptic: ActivityHapticFeedback.success,
       );
       final map = alert.toMap();
       expect(map['title'], 'Order On The Way');
       expect(map['body'], 'Driver is 5 mins away');
       expect(map['sound'], 'alert.caf');
+      expect(map['haptic'], 'success');
 
       final parsed = ActivityAlert.fromMap(map);
       expect(parsed.title, alert.title);
       expect(parsed.body, alert.body);
       expect(parsed.sound, alert.sound);
+      expect(parsed.haptic, ActivityHapticFeedback.success);
     });
   });
 
@@ -103,6 +106,12 @@ void main() {
           ActivityAction(id: 'call_driver', title: 'Call Driver'),
         ],
         timer: ActivityTimer.countdown(const Duration(minutes: 5)),
+        richOngoing: const AndroidRichOngoingOptions(
+          statusChipText: '5m',
+          statusChipIcon: 'ic_stat_car',
+          statusChipColor: 0xFFF59E0B,
+          isProminentChip: true,
+        ),
       );
 
       final map = options.toMap();
@@ -110,6 +119,7 @@ void main() {
       expect(map['progress'], 0.75);
       expect(map['isChronometer'], isTrue);
       expect(map['chronometerBase'], baseTime.millisecondsSinceEpoch);
+      expect(map['richOngoing']['statusChipText'], '5m');
 
       final parsed = AndroidOptions.fromMap(map);
       expect(parsed.channelId, 'delivery_channel');
@@ -118,6 +128,9 @@ void main() {
       expect(parsed.actions.length, 1);
       expect(parsed.actions.first.id, 'call_driver');
       expect(parsed.timer?.countsDown, isTrue);
+      expect(parsed.richOngoing?.statusChipText, '5m');
+      expect(parsed.richOngoing?.statusChipColor, 0xFFF59E0B);
+      expect(parsed.richOngoing?.isProminentChip, isTrue);
     });
 
     test('IOSOptions serialization', () {

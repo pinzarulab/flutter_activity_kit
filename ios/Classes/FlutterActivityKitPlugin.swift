@@ -5,7 +5,7 @@ import UserNotifications
 import ActivityKit
 #endif
 
-public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
+public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, UIWindowSceneDelegate {
     public static var instance: FlutterActivityKitPlugin?
     private static var pendingPreRegistrationActions: [(String, String, [String: Any]?)] = []
 
@@ -56,6 +56,9 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         pendingPreRegistrationActions.removeAll()
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
         registrar.addApplicationDelegate(instance)
+        if #available(iOS 13.0, *) {
+            registrar.addSceneDelegate(instance)
+        }
 
         pushTokensChannel.setStreamHandler(PushTokenStreamHandler(plugin: instance))
         stateUpdatesChannel.setStreamHandler(StateUpdateStreamHandler(plugin: instance))
@@ -180,10 +183,7 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             stringAttributes[k] = "\(v)"
         }
 
-        var stringStateData: [String: String] = [:]
-        for (k, v) in rawState {
-            stringStateData[k] = "\(v)"
-        }
+        let stringStateData = self.sanitizeStateData(from: rawState)
 
         let progress = (rawState["progress"] as? NSNumber)?.doubleValue
         let title = rawState["title"] as? String
@@ -276,10 +276,7 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         }
 
         let rawState = contentMap["state"] as? [String: Any] ?? [:]
-        var stringStateData: [String: String] = [:]
-        for (k, v) in rawState {
-            stringStateData[k] = "\(v)"
-        }
+        let stringStateData = self.sanitizeStateData(from: rawState)
 
         let progress = (rawState["progress"] as? NSNumber)?.doubleValue
         let title = rawState["title"] as? String
@@ -360,6 +357,14 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             }
         }
         return (nil, nil, nil, nil)
+    }
+
+    private func sanitizeStateData(from state: [String: Any]) -> [String: String] {
+        var sanitized: [String: String] = [:]
+        for (k, v) in state {
+            sanitized[k] = "\(v)"
+        }
+        return sanitized
     }
 
     private func endActivity(activityId: String, finalContentMap: [String: Any]?, dismissalPolicyMap: [String: Any]?, result: @escaping FlutterResult) {
@@ -649,11 +654,23 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         }
     }
 
+    // MARK: - UIScene Lifecycle Support (iOS 13+)
+    @available(iOS 13.0, *)
+    public func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            _ = handleOpenURL(context.url)
+        }
+    }
+
     public func application(
         _ application: UIApplication,
         open url: URL,
         options: [UIApplication.OpenURLOptionsKey: Any] = [:]
     ) -> Bool {
+        return handleOpenURL(url)
+    }
+
+    private func handleOpenURL(_ url: URL) -> Bool {
         guard url.scheme == "flutteractivitykit" else { return false }
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let actionId = url.host == "action"
