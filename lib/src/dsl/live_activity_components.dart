@@ -360,3 +360,86 @@ class LADynamicIsland {
     this.minimal,
   });
 }
+
+/// A circular gauge representing a value within a range (translates to SwiftUI `Gauge`).
+class LAGauge extends LAWidget {
+  final String? label;
+  final String currentValue;
+  final double minValue;
+  final double maxValue;
+  final LAColor tint;
+  final String style;
+
+  const LAGauge({
+    this.label,
+    this.currentValue = '__STATE_PROGRESS__',
+    this.minValue = 0.0,
+    this.maxValue = 1.0,
+    this.tint = LAColor.green,
+    this.style = '.accessoryCircular',
+  });
+
+  @override
+  String toSwift(int indent) {
+    final sp = ' ' * indent;
+    final valStr = _resolveTextExpression(currentValue);
+    
+    final buffer = StringBuffer();
+    buffer.writeln('$sp' 'Gauge(value: $valStr, in: $minValue...$maxValue) {');
+    if (label != null) {
+      buffer.writeln('$sp    Text("${label!}")');
+    } else {
+      buffer.writeln('$sp    EmptyView()');
+    }
+    buffer.writeln('$sp}');
+    buffer.writeln('$sp.gaugeStyle($style)');
+    buffer.write('$sp.tint(${tint.swiftRepresentation})');
+    return buffer.toString();
+  }
+  
+  String _resolveTextExpression(String val) {
+    if (val == '__STATE_PROGRESS__') return 'context.state.progress ?? 0.0';
+    if (val.startsWith('__STATE_DATA_') && val.endsWith('__')) {
+      final key = val.substring(13, val.length - 2);
+      return 'Double(context.state.data["$key"] ?? "0") ?? 0.0';
+    }
+    return val;
+  }
+}
+
+/// A beautiful native chart (translates to SwiftUI `Chart` with `BarMark` or `LineMark`).
+class LAChart extends LAWidget {
+  final String dataKey;
+  final LAColor tint;
+  final String chartType; // 'bar' or 'line'
+  
+  const LAChart({
+    required this.dataKey,
+    this.tint = LAColor.blue,
+    this.chartType = 'bar',
+  });
+  
+  @override
+  String toSwift(int indent) {
+    final sp = ' ' * indent;
+    final buffer = StringBuffer();
+    
+    // Parse comma-separated double values directly inline to ensure ViewBuilder compatibility
+    final inlineData = 'Array((context.state.data["$dataKey"] ?? "").split(separator: ",").compactMap { Double(\$0) }.enumerated())';
+    
+    buffer.writeln('$sp' 'Chart($inlineData, id: \\.offset) { index, value in');
+    if (chartType == 'line') {
+      buffer.writeln('$sp    LineMark(');
+    } else {
+      buffer.writeln('$sp    BarMark(');
+    }
+    buffer.writeln('$sp        x: .value("Index", index),');
+    buffer.writeln('$sp        y: .value("Value", value)');
+    buffer.writeln('$sp    )');
+    buffer.writeln('$sp    .foregroundStyle(${tint.swiftRepresentation})');
+    buffer.writeln('$sp}');
+    buffer.writeln('$sp.chartXAxis(.hidden)');
+    buffer.write('$sp.chartYAxis(.hidden)');
+    return buffer.toString();
+  }
+}

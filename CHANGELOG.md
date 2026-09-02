@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- **SwiftUI Charts & Gauges in Pure Dart DSL**:
+  - Added `LAGauge`: Transpiles to native SwiftUI circular progress `Gauge` rings, perfect for fitness apps and battery trackers.
+  - Added `LAChart`: Transpiles to native `Charts` framework (`BarMark` and `LineMark`), rendering high-performance native graphs directly on the Lock Screen from simple Dart arrays.
+
+
 ## 0.6.1
 
 - **iOS Deep Linking & Action Button Fix**: Changed `openApp` behavior in SwiftUI `ActionButton` to correctly render `Link` elements instead of background intents, allowing `FlutterActivityKit.onAction()` callbacks to reliably execute in Dart when tapping Dynamic Island buttons.

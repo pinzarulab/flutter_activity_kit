@@ -142,6 +142,7 @@ String _generateNavigationTemplate(String name) {
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import Charts
 
 // MARK: - Flutter Activity Attributes (Matches Flutter ActivityKit Bridge)
 public struct FlutterActivityAttributes: ActivityAttributes {
@@ -383,6 +384,7 @@ String _generateDeliveryTemplate(String name) {
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import Charts
 
 public struct FlutterActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
@@ -494,6 +496,7 @@ String _generateSportsTemplate(String name) {
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import Charts
 
 public struct FlutterActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
@@ -586,6 +589,7 @@ String _generateWorkoutTemplate(String name) {
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import Charts
 
 public struct FlutterActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
@@ -694,6 +698,7 @@ String _generateGenericTemplate(String name) {
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import Charts
 
 public struct FlutterActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {

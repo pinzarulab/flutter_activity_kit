@@ -1041,7 +1041,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
             children: [
               Icon(Icons.flash_on_rounded, color: Colors.amber),
               SizedBox(width: 8),
-              Text('Flutter ActivityKit v0.6.0'),
+              Text('Flutter ActivityKit v0.7.0'),
             ],
           ),
           bottom: TabBar(
