@@ -10,6 +10,9 @@ import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import org.json.JSONArray
@@ -329,6 +332,13 @@ class OngoingNotificationManager(private val context: Context) {
             }
         }
 
+        val haptic = alertMap?.get("haptic") as? String
+            ?: contentState["haptic"] as? String
+            ?: androidOptions["haptic"] as? String
+        if (!haptic.isNullOrBlank() && haptic != "none") {
+            triggerAndroidHaptic(haptic)
+        }
+
         val progress = (contentState["progress"] as? Number)?.toDouble()
             ?: (androidOptions["progress"] as? Number)?.toDouble()
         val indeterminate = androidOptions["isIndeterminate"] as? Boolean ?: false
@@ -548,6 +558,82 @@ class OngoingNotificationManager(private val context: Context) {
         is JSONObject -> fromJsonObject(value)
         is JSONArray -> List(value.length()) { index -> fromJson(value.get(index)) }
         else -> value
+    }
+
+    private fun triggerAndroidHaptic(haptic: String) {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            } ?: return
+
+            if (!vibrator.hasVibrator()) return
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                when (haptic) {
+                    "success" -> {
+                        val timings = longArrayOf(0, 70, 70, 100)
+                        val amplitudes = intArrayOf(0, 160, 0, 255)
+                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                    }
+                    "warning" -> {
+                        val timings = longArrayOf(0, 120, 80, 120)
+                        val amplitudes = intArrayOf(0, 200, 0, 200)
+                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                    }
+                    "error" -> {
+                        val timings = longArrayOf(0, 80, 50, 80, 50, 120)
+                        val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                    }
+                    "impactHeavy" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+                        } else {
+                            vibrator.vibrate(VibrationEffect.createOneShot(100, 255))
+                        }
+                    }
+                    "impactMedium" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+                        } else {
+                            vibrator.vibrate(VibrationEffect.createOneShot(60, 180))
+                        }
+                    }
+                    "impactLight" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+                        } else {
+                            vibrator.vibrate(VibrationEffect.createOneShot(30, 100))
+                        }
+                    }
+                    "selection" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+                        } else {
+                            vibrator.vibrate(VibrationEffect.createOneShot(20, 80))
+                        }
+                    }
+                    else -> {
+                        vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                when (haptic) {
+                    "success", "warning" -> vibrator.vibrate(longArrayOf(0, 70, 70, 100), -1)
+                    "error" -> vibrator.vibrate(longArrayOf(0, 80, 50, 80, 50, 120), -1)
+                    "impactHeavy" -> vibrator.vibrate(100)
+                    "impactMedium" -> vibrator.vibrate(60)
+                    else -> vibrator.vibrate(30)
+                }
+            }
+        } catch (_: Exception) {
+            // Non-critical vibration fallback
+        }
     }
 
     companion object {

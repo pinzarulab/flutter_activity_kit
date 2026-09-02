@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- **iOS Deep Linking & Action Button Fix**: Changed `openApp` behavior in SwiftUI `ActionButton` to correctly render `Link` elements instead of background intents, allowing `FlutterActivityKit.onAction()` callbacks to reliably execute in Dart when tapping Dynamic Island buttons.
+- **Native iOS Haptic Engine Manager**: Replaced heavy `AlertConfiguration` overrides with a custom `HapticEngineManager` and `UINotificationFeedbackGenerator`. This allows for distinct, subtle custom haptics (success, warning, light/medium/heavy impact, selection) during silent widget updates.
+- **iOS 17 Widget Interception Fix**: Removed overlapping `.widgetURL` constraints that were swallowing tap gestures in the expanded Dynamic Island.
+- **Simulator Sound Fallback**: Added `AudioServicesPlaySystemSound` fallback to iOS haptics engine and `HapticFeedback.vibrate()` to Dart example app to aid testing on iOS Simulators lacking physical haptic motors.
+
 ## 0.6.0
 
 - **Android 16 Rich Ongoing Notifications (Status Bar Chips)**:

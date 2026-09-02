@@ -1,6 +1,8 @@
 import Flutter
 import UIKit
 import UserNotifications
+import CoreHaptics
+import AudioToolbox
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
@@ -183,6 +185,21 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             stringAttributes[k] = "\(v)"
         }
 
+        if let rawActions = args["actions"] as? [[String: Any]] {
+            stringAttributes["action_count"] = "\(rawActions.count)"
+            for (idx, act) in rawActions.enumerated() {
+                if let actId = act["id"] as? String {
+                    stringAttributes["action_\(idx)_id"] = actId
+                }
+                if let actTitle = act["title"] as? String {
+                    stringAttributes["action_\(idx)_title"] = actTitle
+                }
+                if let actIcon = act["icon"] as? String {
+                    stringAttributes["action_\(idx)_icon"] = actIcon
+                }
+            }
+        }
+
         let stringStateData = self.sanitizeStateData(from: rawState)
 
         let progress = (rawState["progress"] as? NSNumber)?.doubleValue
@@ -215,6 +232,15 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         var pushType: ActivityKit.PushType? = nil
         if let pushTypeStr = iosOptions["pushType"] as? String, pushTypeStr == "token" {
             pushType = .token
+        }
+
+        if let alertMap = args["alert"] as? [String: Any],
+           let haptic = alertMap["haptic"] as? String,
+           !haptic.isEmpty, haptic != "none" {
+            self.triggerIOSHaptic(haptic: haptic)
+        } else if let haptic = rawContent["haptic"] as? String ?? rawState["haptic"] as? String,
+                  !haptic.isEmpty, haptic != "none" {
+            self.triggerIOSHaptic(haptic: haptic)
         }
 
         do {
@@ -309,11 +335,23 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
             let alertTitle = alertMap["title"] as? String ?? ""
             let alertBody = alertMap["body"] as? String ?? ""
             let alertSound = alertMap["sound"] as? String
-            if let sound = alertSound, sound != "default" {
-                alertConfig = AlertConfiguration(title: "\(alertTitle)", body: "\(alertBody)", sound: .named(sound))
+            if let sound = alertSound {
+                if sound == "none" || sound == "silent" {
+                    alertConfig = AlertConfiguration(title: "\(alertTitle)", body: "\(alertBody)", sound: nil)
+                } else if sound != "default" {
+                    alertConfig = AlertConfiguration(title: "\(alertTitle)", body: "\(alertBody)", sound: .named(sound))
+                } else {
+                    alertConfig = AlertConfiguration(title: "\(alertTitle)", body: "\(alertBody)", sound: .default)
+                }
             } else {
-                alertConfig = AlertConfiguration(title: "\(alertTitle)", body: "\(alertBody)", sound: .default)
+                // When sound is omitted/nil in Dart, avoid forcing iOS .default (which forces a long heavy generic buzz)
+                alertConfig = AlertConfiguration(title: "\(alertTitle)", body: "\(alertBody)", sound: nil)
             }
+            if let haptic = alertMap["haptic"] as? String, !haptic.isEmpty, haptic != "none" {
+                self.triggerIOSHaptic(haptic: haptic)
+            }
+        } else if let haptic = contentMap["haptic"] as? String ?? rawState["haptic"] as? String, !haptic.isEmpty, haptic != "none" {
+            self.triggerIOSHaptic(haptic: haptic)
         }
 
         Task {
@@ -626,9 +664,32 @@ public class FlutterActivityKitPlugin: NSObject, FlutterPlugin, FlutterStreamHan
         }
     }
 
+    public func triggerIOSHaptic(haptic: String) {
+        DispatchQueue.main.async {
+            HapticEngineManager.shared.play(haptic: haptic)
+        }
+    }
+
     public func sendActionEvent(activityId: String, actionId: String, payload: [String: Any]? = nil) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+
+            if actionId.contains("success") {
+                self.triggerIOSHaptic(haptic: "success")
+            } else if actionId.contains("warning") {
+                self.triggerIOSHaptic(haptic: "warning")
+            } else if actionId.contains("error") {
+                self.triggerIOSHaptic(haptic: "error")
+            } else if actionId.contains("heavy") {
+                self.triggerIOSHaptic(haptic: "impactHeavy")
+            } else if actionId.contains("light") {
+                self.triggerIOSHaptic(haptic: "impactLight")
+            } else if actionId.contains("selection") {
+                self.triggerIOSHaptic(haptic: "selection")
+            } else {
+                self.triggerIOSHaptic(haptic: "impactMedium")
+            }
+
             let eventKey = "\(activityId)|\(actionId)"
             let now = Date()
             if let previous = self.recentActionEvents[eventKey],
@@ -730,5 +791,158 @@ private class ActionEventStreamHandler: NSObject, FlutterStreamHandler {
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
         plugin?.setActionEventSink(nil)
         return nil
+    }
+}
+
+// MARK: - CoreHaptics Advanced Vibration Engine
+public class HapticEngineManager {
+    public static let shared = HapticEngineManager()
+    private var engine: CHHapticEngine?
+    private var isEngineReady = false
+
+    public init() {
+        setupEngine()
+    }
+
+    private func setupEngine() {
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
+        do {
+            engine = try CHHapticEngine()
+            engine?.resetHandler = { [weak self] in
+                do {
+                    try self?.engine?.start()
+                } catch {
+                    self?.isEngineReady = false
+                }
+            }
+            engine?.stoppedHandler = { [weak self] reason in
+                self?.isEngineReady = false
+            }
+            try engine?.start()
+            isEngineReady = true
+        } catch {
+            isEngineReady = false
+        }
+    }
+
+    public func play(haptic: String) {
+        // Swift Default System Haptics for success, warning/alert, and error
+        switch haptic {
+        case "success":
+            AudioServicesPlaySystemSound(1519)
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.success)
+            return
+        case "warning", "alert":
+            AudioServicesPlaySystemSound(1519)
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.warning)
+            return
+        case "error":
+            AudioServicesPlaySystemSound(1521)
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.error)
+            return
+        default:
+            break
+        }
+
+        // Custom CoreHaptics for impactHeavy, impactMedium, impactLight, selection
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
+            fallbackHaptic(haptic: haptic)
+            return
+        }
+
+        do {
+            if engine == nil || !isEngineReady {
+                setupEngine()
+            }
+            try engine?.start()
+            isEngineReady = true
+
+            var events: [CHHapticEvent] = []
+
+            switch haptic {
+            case "impactHeavy":
+                // Custom Heavy: Deep sustained sub-bass impact thud
+                let p1 = CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0)
+                let s1 = CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.05)
+                let event1 = CHHapticEvent(eventType: .hapticContinuous, parameters: [p1, s1], relativeTime: 0, duration: 0.10)
+
+                let p2 = CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0)
+                let s2 = CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.2)
+                let event2 = CHHapticEvent(eventType: .hapticTransient, parameters: [p2, s2], relativeTime: 0.04)
+                events = [event1, event2]
+
+            case "impactMedium":
+                // Custom Medium: Crisp punchy click
+                let p = CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.75)
+                let s = CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.55)
+                let event = CHHapticEvent(eventType: .hapticTransient, parameters: [p, s], relativeTime: 0)
+                events = [event]
+
+            case "impactLight":
+                // Custom Light: Subtle delicate tick
+                let p = CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.40)
+                let s = CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.90)
+                let event = CHHapticEvent(eventType: .hapticTransient, parameters: [p, s], relativeTime: 0)
+                events = [event]
+
+            case "selection":
+                // Custom Selection: Feather micro-tap
+                let p = CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.25)
+                let s = CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.75)
+                let event = CHHapticEvent(eventType: .hapticTransient, parameters: [p, s], relativeTime: 0)
+                events = [event]
+
+            default:
+                fallbackHaptic(haptic: haptic)
+                return
+            }
+
+            let pattern = try CHHapticPattern(events: events, parameters: [])
+            let player = try engine?.makePlayer(with: pattern)
+            try player?.start(atTime: 0)
+        } catch {
+            fallbackHaptic(haptic: haptic)
+        }
+    }
+
+    private func fallbackHaptic(haptic: String) {
+        switch haptic {
+        case "success":
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.success)
+        case "warning":
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.warning)
+        case "error":
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.error)
+        case "impactHeavy":
+            let generator = UIImpactFeedbackGenerator(style: .heavy)
+            generator.prepare()
+            generator.impactOccurred()
+        case "impactMedium":
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            generator.impactOccurred()
+        case "impactLight":
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred()
+        case "selection":
+            let generator = UISelectionFeedbackGenerator()
+            generator.prepare()
+            generator.selectionChanged()
+        default:
+            AudioServicesPlaySystemSound(1519) // Peek
+        }
     }
 }

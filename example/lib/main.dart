@@ -54,6 +54,14 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
       _deliverySession;
   ActivitySession<MapActivityAttributes, MapActivityContentState>?
       _sportsSession;
+  ActivitySession<MapActivityAttributes, MapActivityContentState>?
+      _hapticsSession;
+
+  // Haptics & Alert Configuration State
+  ActivityHapticFeedback _selectedHaptic = ActivityHapticFeedback.success;
+  int _hapticsActionCount = 0;
+  String _hapticsLastAction = 'None';
+  double _hapticsProgress = 0.25;
 
   // Reactive Controller Demo
   late final ActivityController<Map<String, dynamic>> _workoutController;
@@ -247,7 +255,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _initPlatformStatus();
     _subscribeToGlobalEvents();
 
@@ -341,6 +349,46 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
             ),
           );
         }
+      }),
+    );
+
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('haptic_success', (event) {
+        _logEvent('Action Callback: Success milestone tapped from Live Activity');
+        unawaited(_triggerHapticAlert(
+          haptic: ActivityHapticFeedback.success,
+          title: '✅ Milestone Complete',
+          message: 'Task accomplished with native success feedback!',
+        ));
+      }),
+    );
+
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('haptic_warning', (event) {
+        _logEvent('Action Callback: Warning tapped from Live Activity');
+        unawaited(_triggerHapticAlert(
+          haptic: ActivityHapticFeedback.warning,
+          title: '⚠️ Attention Needed',
+          message: 'Battery low or threshold approaching!',
+        ));
+      }),
+    );
+
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('haptic_heavy', (event) {
+        _logEvent('Action Callback: Heavy Impact tapped from Live Activity');
+        unawaited(_triggerHapticAlert(
+          haptic: ActivityHapticFeedback.impactHeavy,
+          title: '💥 Heavy Impact',
+          message: 'Major milestone collision event recorded!',
+        ));
+      }),
+    );
+
+    _cancelListeners.add(
+      FlutterActivityKit.onAction('haptic_complete', (event) {
+        _logEvent('Action Callback: Finish tapped from Live Activity');
+        unawaited(_endHapticsSession());
       }),
     );
 
@@ -864,6 +912,123 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
     }
   }
 
+  // ⚡ Haptic Alerts & Interactive Actions Session Methods
+  Future<void> _startHapticsSession() async {
+    try {
+      if (!_areActivitiesEnabled) {
+        final granted = await FlutterActivityKit.requestPermissions();
+        setState(() => _areActivitiesEnabled = granted);
+      }
+
+      _hapticsActionCount = 0;
+      _hapticsProgress = 0.25;
+      _hapticsLastAction = 'Session Started';
+
+      final session = await FlutterActivityKit.start(
+        activityType: 'AlertsAttributes',
+        title: 'Mission In Progress ⚡',
+        message: 'Interactive Action Buttons & Haptic Alerts',
+        status: 'Active 🟢',
+        progress: _hapticsProgress,
+        alert: const AlertConfiguration(
+          title: '⚡ Haptics & Alerts Active',
+          body: 'Native vibration on Android & Dynamic Island alert on iOS',
+          haptic: ActivityHapticFeedback.impactHeavy,
+        ),
+        attributes: const {
+          'missionId': 'MISSION-900',
+          'type': 'Interactive Alert Showcase',
+        },
+        actions: const [
+          ActivityAction(
+            id: 'haptic_success',
+            title: '✅ Success',
+            icon: 'ic_input_add',
+          ),
+          ActivityAction(
+            id: 'haptic_warning',
+            title: '⚠️ Warning',
+            icon: 'ic_dialog_alert',
+          ),
+          ActivityAction(
+            id: 'haptic_heavy',
+            title: '💥 Heavy',
+            icon: 'ic_lock_idle_charging',
+          ),
+          ActivityAction(
+            id: 'haptic_complete',
+            title: '🏁 Finish',
+            isDestructive: true,
+          ),
+        ],
+      );
+
+      setState(() {
+        _hapticsSession = session;
+      });
+
+      _logEvent('Started Haptic Alerts Activity: ${session.id}');
+    } catch (e) {
+      _logEvent('Error starting haptic alerts activity: $e');
+    }
+  }
+
+  Future<void> _triggerHapticAlert({
+    required ActivityHapticFeedback haptic,
+    required String title,
+    required String message,
+  }) async {
+    if (_hapticsSession == null) {
+      await _startHapticsSession();
+    }
+    try {
+      _hapticsActionCount++;
+      _hapticsProgress = (_hapticsProgress + 0.15).clamp(0.0, 1.0);
+      _hapticsLastAction = '${haptic.name.toUpperCase()} -> $title';
+
+      await _hapticsSession!.quickUpdate(
+        title: title,
+        message: message,
+        status: 'Alert Triggered ⚡',
+        progress: _hapticsProgress,
+        data: {'haptic': haptic.name},
+      );
+      
+      // Also trigger standard Flutter haptic so the user feels it immediately in the app
+      if (haptic == ActivityHapticFeedback.impactHeavy) {
+        await HapticFeedback.heavyImpact();
+      } else if (haptic == ActivityHapticFeedback.success) {
+        await HapticFeedback.mediumImpact();
+      } else {
+        await HapticFeedback.vibrate();
+      }
+
+      setState(() {});
+      _logEvent('Triggered ${haptic.name} alert: $title (Android vibration + iOS bounce)');
+    } catch (e) {
+      _logEvent('Error triggering haptic alert: $e');
+    }
+  }
+
+  Future<void> _endHapticsSession() async {
+    if (_hapticsSession == null) return;
+    try {
+      await _hapticsSession!.quickEnd(
+        title: 'Mission Accomplished! 🏆',
+        message: 'All interactive milestones completed with native haptics.',
+        status: 'Completed ✅',
+        progress: 1.0,
+        dismissalPolicy: ActivityDismissalPolicy.defaultPolicy,
+      );
+      _logEvent('Ended Haptic Alerts Activity: ${_hapticsSession!.id}');
+      setState(() {
+        _hapticsSession = null;
+      });
+    } catch (e) {
+      _logEvent('Error ending haptic alerts activity: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -888,6 +1053,9 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
               Tab(icon: Icon(Icons.local_pizza_rounded), text: 'Food Delivery'),
               Tab(icon: Icon(Icons.sports_soccer_rounded), text: 'Live Sports'),
               Tab(
+                  icon: Icon(Icons.vibration_rounded),
+                  text: 'Haptics & Alerts'),
+              Tab(
                   icon: Icon(Icons.sync_alt_rounded),
                   text: 'Reactive Controller'),
               Tab(icon: Icon(Icons.terminal_rounded), text: 'Events & Tokens'),
@@ -904,6 +1072,7 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
                   _buildRideTab(theme),
                   _buildDeliveryTab(theme),
                   _buildSportsTab(theme),
+                  _buildHapticsAndAlertsTab(theme),
                   _buildReactiveControllerTab(theme),
                   _buildLogsAndTokensTab(theme),
                 ],
@@ -1580,6 +1749,469 @@ class _ActivityDashboardScreenState extends State<ActivityDashboardScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHapticsAndAlertsTab(ThemeData theme) {
+    final isSessionActive = _hapticsSession != null;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 🎮 Live Session Status & Controls
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.vibration_rounded,
+                              color: Colors.purpleAccent, size: 22),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Haptics & Alert Configuration',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isSessionActive
+                              ? Colors.green.withValues(alpha: 0.15)
+                              : Colors.grey.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isSessionActive ? 'ACTIVE' : 'IDLE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isSessionActive ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Trigger rich milestone alerts with ActivityHapticFeedback, AlertConfiguration, and native Android vibration effects alongside iOS Dynamic Island bounce alerts.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  if (isSessionActive) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Mission Progress: ${(_hapticsProgress * 100).toInt()}%',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          'Actions: $_hapticsActionCount',
+                          style: const TextStyle(
+                              color: Colors.purpleAccent, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: _hapticsProgress,
+                      color: Colors.purpleAccent,
+                      backgroundColor: Colors.purpleAccent.withValues(alpha: 0.2),
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.touch_app_rounded,
+                              size: 16, color: Colors.purpleAccent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Last Action: $_hapticsLastAction',
+                              style: const TextStyle(
+                                  fontSize: 12, fontFamily: 'monospace'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Row(
+                    children: [
+                      if (!isSessionActive)
+                        Expanded(
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.purpleAccent.shade700,
+                            ),
+                            onPressed: _startHapticsSession,
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: const Text('Start Interactive Session'),
+                          ),
+                        )
+                      else ...[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _triggerHapticAlert(
+                              haptic: _selectedHaptic,
+                              title: '⚡ Custom ${_selectedHaptic.name} Alert',
+                              message: 'Triggered milestone at ${DateTime.now().toIso8601String().substring(11, 19)}',
+                            ),
+                            icon: const Icon(Icons.bolt_rounded),
+                            label: const Text('Fire Selected Alert'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                              backgroundColor: Colors.redAccent),
+                          onPressed: _endHapticsSession,
+                          icon: const Icon(Icons.stop_rounded),
+                          label: const Text('End Session'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 📳 ActivityHapticFeedback Test Matrix
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.touch_app_rounded,
+                          color: Colors.amber, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'ActivityHapticFeedback & Vibration Matrix',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap any haptic style below to send an immediate AlertConfiguration with native vibration effect on Android and Dynamic Island pulse on iOS:',
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.success,
+                        icon: Icons.check_circle_outline,
+                        label: 'success',
+                        desc: 'Double pulse vibration',
+                        color: Colors.green,
+                      ),
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.warning,
+                        icon: Icons.warning_amber_rounded,
+                        label: 'warning',
+                        desc: 'Long-short vibration',
+                        color: Colors.orange,
+                      ),
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.error,
+                        icon: Icons.error_outline_rounded,
+                        label: 'error',
+                        desc: 'Triple buzz vibration',
+                        color: Colors.redAccent,
+                      ),
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.impactHeavy,
+                        icon: Icons.fitness_center_rounded,
+                        label: 'impactHeavy',
+                        desc: 'Heavy click pulse',
+                        color: Colors.purpleAccent,
+                      ),
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.impactMedium,
+                        icon: Icons.hdr_strong_rounded,
+                        label: 'impactMedium',
+                        desc: 'Medium click pulse',
+                        color: Colors.blueAccent,
+                      ),
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.impactLight,
+                        icon: Icons.flare_rounded,
+                        label: 'impactLight',
+                        desc: 'Subtle light tick',
+                        color: Colors.tealAccent,
+                      ),
+                      _buildHapticFeedbackChip(
+                        theme: theme,
+                        haptic: ActivityHapticFeedback.selection,
+                        icon: Icons.radio_button_checked_rounded,
+                        label: 'selection',
+                        desc: 'Selection tick',
+                        color: Colors.cyanAccent,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 🔘 Interactive Action Buttons Simulator
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.smart_button_rounded,
+                          color: Colors.cyanAccent, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Interactive Notification Action Buttons',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'These actions are rendered directly on the iOS Lock Screen & Android Ongoing Notification banner. Tap them to test the roundtrip:',
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _triggerHapticAlert(
+                            haptic: ActivityHapticFeedback.success,
+                            title: '✅ Milestone Progress (+15%)',
+                            message: 'Success feedback triggered from notification action button',
+                          ),
+                          icon: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          label: const Text('✅ Success'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _triggerHapticAlert(
+                            haptic: ActivityHapticFeedback.warning,
+                            title: '⚠️ Warning Alert Triggered',
+                            message: 'Caution threshold reached with vibration feedback',
+                          ),
+                          icon: const Icon(Icons.warning, color: Colors.orange, size: 16),
+                          label: const Text('⚠️ Warning'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _triggerHapticAlert(
+                            haptic: ActivityHapticFeedback.impactHeavy,
+                            title: '💥 Heavy Impact Event',
+                            message: 'Collision milestone recorded with heavy impact vibration',
+                          ),
+                          icon: const Icon(Icons.bolt, color: Colors.purpleAccent, size: 16),
+                          label: const Text('💥 Heavy'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                          ),
+                          onPressed: _endHapticsSession,
+                          icon: const Icon(Icons.flag, color: Colors.redAccent, size: 16),
+                          label: const Text('🏁 Finish'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ℹ️ Platform Capabilities Card
+          Card(
+            elevation: 1,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Native Platform Capabilities',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildPlatformBullet(
+                    icon: Icons.android_rounded,
+                    color: Colors.greenAccent,
+                    title: 'Android Vibration Effects',
+                    desc: 'Uses native Vibrator & VibrationEffect waveforms (double pulses, ticks, heavy clicks) combined with Heads-Up notification banners.',
+                  ),
+                  const SizedBox(height: 8),
+                  _buildPlatformBullet(
+                    icon: Icons.apple_rounded,
+                    color: Colors.white,
+                    title: 'iOS Dynamic Island & AlertConfiguration',
+                    desc: 'Triggers visual Dynamic Island bounce expansions, system sounds, and UIImpactFeedbackGenerator / UINotificationFeedbackGenerator.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHapticFeedbackChip({
+    required ThemeData theme,
+    required ActivityHapticFeedback haptic,
+    required IconData icon,
+    required String label,
+    required String desc,
+    required Color color,
+  }) {
+    final isSelected = _selectedHaptic == haptic;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedHaptic = haptic;
+        });
+        unawaited(_triggerHapticAlert(
+          haptic: haptic,
+          title: '📳 Haptic: $label',
+          message: 'Fired $desc across iOS & Android',
+        ));
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.2)
+              : theme.colorScheme.surfaceContainerHighest,
+          border: Border.all(
+            color: isSelected ? color : Colors.white12,
+            width: isSelected ? 1.5 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: isSelected ? color : null,
+                  ),
+                ),
+                Text(
+                  desc,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlatformBullet({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String desc,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

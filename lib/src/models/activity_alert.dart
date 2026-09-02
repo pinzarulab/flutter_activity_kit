@@ -80,3 +80,6 @@ class ActivityAlert {
   @override
   int get hashCode => Object.hash(title, body, sound, haptic);
 }
+
+/// Type alias for [ActivityAlert], aligning with Apple ActivityKit AlertConfiguration.
+typedef AlertConfiguration = ActivityAlert;
